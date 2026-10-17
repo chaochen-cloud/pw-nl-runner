@@ -37,7 +37,7 @@ def main():
             else:
                 res = "✅ PASS" if rec.get("exit_code") == 0 else "❌ FAIL"
             screenshot_name = f"{case['case_id']}-step{rec['step_idx']:02d}.png"
-            screenshot_link = f"![截图](attachment/{screenshot_name})"
+            screenshot_link = f"[查看截图](attachment/{screenshot_name})"
             md_lines.append(f"|{rec['step_idx']}|{nl}|`{cmd}`|{res}|{screenshot_link}|")
         md_lines.append("")
 
