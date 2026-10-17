@@ -1,0 +1,11 @@
+{
+  "case_id": "TC001",
+  "title": "登录成功后跳转首页",
+  "session": "tc001",
+  "steps": [
+    {
+      "nl": "1. 打开 https://app.example.com/login",
+      "command": "playwright-cli -s=tc001 open https://app.example.com/login"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "case_id": "TC002",
+  "title": "添加两条待办并勾选第一条",
+  "session": "tc002",
+  "steps": [
+    {
+      "nl": "1. 打开 https://demo.playwright.dev/todomvc",
+      "command": "playwright-cli -s=tc002 open https://demo.playwright.dev/todomvc"
+    },
+    {
+      "nl": "2. 在待办输入框中输入 \"Buy groceries\" 并回车",
+      "command": "playwright-cli -s=tc002 snapshot"
+    },
+    {
+      "nl": "2. 在待办输入框中输入 \"Buy groceries\" 并回车",
+      "command": "playwright-cli -s=tc002 eval el=>{const[s]=[Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set];s.call(el,'Buy'+String.fromCharCode(32)+'groceries');el.dispatchEvent(new(Event)('input',{bubbles:true}));} e8"
+    },
+    {
+      "nl": "2. 在待办输入框中输入 \"Buy groceries\" 并回车",
+      "command": "playwright-cli -s=tc002 press Enter"
+    },
+    {
+      "nl": "3. 在待办输入框中输入 \"Water flowers\" 并回车",
+      "command": "playwright-cli -s=tc002 eval el=>{const[s]=[Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set];s.call(el,'Water'+String.fromCharCode(32)+'flowers');el.dispatchEvent(new(Event)('input',{bubbles:true}));} e8"
+    },
+    {
+      "nl": "3. 在待办输入框中输入 \"Water flowers\" 并回车",
+      "command": "playwright-cli -s=tc002 press Enter"
+    },
+    {
+      "nl": "4. 勾选列表中的第一条待办 \"Buy groceries\"",
+      "command": "playwright-cli -s=tc002 snapshot"
+    },
+    {
+      "nl": "4. 勾选列表中的第一条待办 \"Buy groceries\"",
+      "command": "playwright-cli -s=tc002 click e21"
+    },
+    {
+      "nl": "- 列表中出现两条待办，文本分别为 \"Buy groceries\" 和 \"Water flowers\"",
+      "command": "playwright-cli -s=tc002 eval el=>{if(el.children.length!==2)throw(Error('expected_two_items'));const[t]=[el.innerText];if(!t.includes('Buy'+String.fromCharCode(32)+'groceries')||!t.includes('Water'+String.fromCharCode(32)+'flowers'))throw(Error('wrong_titles'));return!0} e18",
+      "is_assert": true
+    },
+    {
+      "nl": "- 第一条待办 \"Buy groceries\" 处于已完成状态（带删除线）",
+      "command": "playwright-cli -s=tc002 eval el=>{if(!el.checked)throw(Error('unchecked'));const[li]=[el.closest('li')];if(!li.classList.contains('completed'))throw(Error('missing_completed_class'));if(getComputedStyle(li.querySelector('label')).textDecorationLine!=='line-through')throw(Error('missing_strikethrough'));return!0} e21",
+      "is_assert": true
+    }
+  ]
+}
