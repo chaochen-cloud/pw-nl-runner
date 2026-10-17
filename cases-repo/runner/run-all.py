@@ -24,39 +24,104 @@ def get_command_argv(command):
     raise ValueError("Plan step command must be a string or an array of strings")
 
 
+def select_case_plans(plan_dir, case_ids):
+    available_plans = {
+        path.stem: path
+        for path in sorted(plan_dir.glob("TC*.json"), key=lambda item: item.stem)
+    }
+    if not case_ids:
+        return list(available_plans.values())
+
+    missing = [case_id for case_id in case_ids if case_id not in available_plans]
+    if missing:
+        raise ValueError(f"No plan found for case(s): {', '.join(missing)}")
+    return [available_plans[case_id] for case_id in case_ids]
+
+
+def prepare_run(root, run_dir_arg):
+    reports_dir = (root / "reports").resolve()
+    if run_dir_arg is None:
+        run_ts = time.strftime("%Y%m%d_%H%M%S")
+        run_dir = reports_dir / f"run-{run_ts}"
+        run_dir.mkdir(parents=True, exist_ok=False)
+        attachment_dir = run_dir / "attachment"
+        attachment_dir.mkdir()
+        run_summary = {
+            "run_ts": run_ts,
+            "run_dir": str(run_dir),
+            "attachment_dir": str(attachment_dir),
+            "cases": [],
+        }
+        return run_dir, attachment_dir, run_summary
+
+    run_dir = Path(run_dir_arg)
+    if not run_dir.is_absolute():
+        run_dir = root / run_dir
+    run_dir = run_dir.resolve()
+    try:
+        run_dir.relative_to(reports_dir)
+    except ValueError as exc:
+        raise ValueError("Run directory must be inside the reports directory") from exc
+
+    report_path = run_dir / "report.json"
+    attachment_dir = run_dir / "attachment"
+    if not run_dir.is_dir() or not report_path.is_file() or not attachment_dir.is_dir():
+        raise ValueError(f"Cannot append to incomplete run directory: {run_dir}")
+
+    with report_path.open("r", encoding="utf-8") as report_file:
+        run_summary = json.load(report_file)
+    if run_summary.get("run_dir") != str(run_dir):
+        raise ValueError(f"Run report does not belong to directory: {run_dir}")
+    return run_dir, attachment_dir, run_summary
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, help="config.json path")
+    parser.add_argument(
+        "--case",
+        action="append",
+        dest="case_ids",
+        help="run only this case plan; may be repeated for multiple case IDs",
+    )
+    parser.add_argument(
+        "--run-dir",
+        help="append this case invocation to an existing report run directory",
+    )
     args = parser.parse_args()
 
     # 工程根目录
     root = Path(__file__).parent.parent.parent
     cfg = load_config(args.config)
 
-    # 每次执行新建独立时间戳运行目录
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    run_dir = root / "reports" / f"run-{ts}"
-    attachment_dir = run_dir / "attachment"
-    run_dir.mkdir(parents=True, exist_ok=False)
-    attachment_dir.mkdir(parents=True, exist_ok=False)
+    plan_dir = root / cfg["plan_dir"]
+    try:
+        case_plans = select_case_plans(plan_dir, args.case_ids)
+        if args.run_dir and (not args.case_ids or len(args.case_ids) != 1):
+            raise ValueError("--run-dir requires exactly one --case")
+        run_dir, attachment_dir, run_summary = prepare_run(root, args.run_dir)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     log_file = root / "logs" / "commands.jsonl"
     Path(log_file).parent.mkdir(exist_ok=True)
-
-    plan_dir = root / cfg["plan_dir"]
-    case_plans = sorted(list(plan_dir.glob("TC*.json")), key=lambda x: x.stem)
-
-    run_summary = {
-        "run_ts": ts,
-        "run_dir": str(run_dir),
-        "attachment_dir": str(attachment_dir),
-        "cases": []
-    }
 
     for plan_path in case_plans:
         with open(plan_path, "r", encoding="utf-8") as f:
             plan = json.load(f)
         case_id = plan["case_id"]
+        if case_id != plan_path.stem:
+            raise ValueError(
+                f"Plan filename {plan_path.name} does not match case_id {case_id}"
+            )
+        if args.case_ids and case_id not in args.case_ids:
+            raise ValueError(
+                f"Selected plan {plan_path.name} does not match requested case ID"
+            )
+        if any(existing["case_id"] == case_id for existing in run_summary["cases"]):
+            raise ValueError(
+                f"Case {case_id} is already present in report run {run_dir}"
+            )
         case_title = plan["title"]
         steps = plan["steps"]
 
@@ -149,7 +214,7 @@ def main():
     ]
     subprocess.run(summarize_cmd, check=True)
 
-    print(f"\n✅ 全部用例执行完成！")
+    print(f"\n✅ 本批用例执行完成！")
     print(f"📁 报告目录：{run_dir}")
     print(f"🖼️ 截图附件目录：{attachment_dir}")
     print(f"📄 可视化报告：{run_dir}/report.md")

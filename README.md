@@ -84,8 +84,17 @@ python3 cases-repo/runner/pw-cli-log.py --case TC002 --nl '在待办输入框中
 `logs/commands.jsonl` 每个步骤一行，记录原始 `nl_step`、实际 `cmd` 参数数组、退出码和输出。每次运行结束后，runner 会调用 `summarize.py` 同时生成 `report.md` 和 `report.html`。HTML 报告中的截图以小图显示，点击可在当前页面放大；点击大图即可关闭，原始截图文件保存在 `attachment/`：
 
 ```bash
+# 执行单个用例；先生成对应 plans/TC002.json，再只运行 TC002
+python3 cases-repo/runner/run-all.py --config config.json --case TC002
+
+# 执行一条后续用例并追加到首条用例创建的同一份报告
+python3 cases-repo/runner/run-all.py --config config.json --case TC003 --run-dir reports/run-YYYYMMDD_HHMMSS
+
+# 不指定 --case 时仍会直接执行计划目录内的全部已有计划
 python3 cases-repo/runner/run-all.py --config config.json
 ```
+
+按 `all` 或范围运行时，Skill 会逐条读取 Markdown、生成当前用例计划并立即调用 runner 执行，再继续下一条；每次调用都指定一个 `--case`。第一条调用创建报告目录，后续调用用 `--run-dir` 把结果追加到同一份报告中。runner 也支持重复 `--case` 直接执行多个已有计划，但这不用于 Skill 的按需翻译流程。
 
 ## 新增用例
 
