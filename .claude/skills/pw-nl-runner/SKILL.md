@@ -8,7 +8,7 @@ description: 从指定Git仓库读取自然语言Markdown测试用例，翻译�
 ## 输入参数
 - git_repo: 用例Git仓库地址（本地路径/https/ssh）
 - filter: 可选，用例过滤 TC001 / TC001-TC003 / all
-- work_root: 工程根目录，固定为 `/Users/canvas/Downloads/pw-nl-runner`
+- work_root: 执行本 Skill 时的当前工作目录；开始时通过 `pwd` 获取并作为工程根目录，后续路径均相对该目录解析
 
 ## 执行流程
 1. **拉取/更新用例仓库**
