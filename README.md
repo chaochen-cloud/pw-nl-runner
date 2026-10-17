@@ -7,13 +7,11 @@
 ```
 用户一句话触发
    ↓
-自定义 skill（.claude/skills/pw-nl-runner）——编排层：拉仓库、循环、翻译、断言、汇总
-   ↓ 命令必须经过日志包装器
-cases-repo/runner/pw-cli-log.py —— 记录每条命令到 logs/commands.jsonl
+自定义 skill（.claude/skills/pw-nl-runner）——逐步观察当前页面、生成并执行下一条命令
    ↓
-playwright-cli（官方 skill 提供命令语法）——执行层
+cases-repo/runner/run-all.py —— live-step 执行、逐命令截图、报告增量更新
    ↓
-logs/ 审计日志 → summarize.py → reports/run-<时间戳>.md 汇总报告
+pw-cli-log.py —— 记录命令和阶段 → summarize.py → reports/run-<时间戳>/{report.md,report.html}
 ```
 
 ## 目录结构
@@ -27,10 +25,12 @@ pw-nl-runner/
 │   ├── cases/
 │   │   ├── TC001.md                 # 自然语言用例：登录
 │   │   ├── TC002.md                 # 自然语言用例：TodoMVC
-│   │   └── TC003.md                 # 自然语言用例：复用登录态发 POST
+│   │   ├── TC003.md                 # 自然语言用例：复用登录态发 POST
+│   │   └── TC004.md                 # 自然语言用例：TodoMVC 后搜索百度
 │   └── runner/
-│       ├── pw-cli-log.py            # 【核心】命令日志包装器
-│       └── summarize.py             # 日志 → 汇总报告
+│       ├── run-all.py               # 静态计划兼容执行和 live-step 执行入口
+│       ├── pw-cli-log.py            # 命令日志包装器
+│       └── summarize.py             # 增量报告生成
 ├── logs/                            # 命令审计日志（运行后生成，建议 gitignore）
 └── reports/                         # 汇总报告（运行后生成，建议 gitignore）
 ```
@@ -68,33 +68,36 @@ cd cases-repo && git init && git add -A && git commit -m "init cases"
 
 ## 命令日志机制（核心）
 
-所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`，SKILL.md 已强制此规则。计划命令使用 argv 数组，以原样传递含空格的定位器和文本：
+所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`。推荐 live-step 模式：执行每条操作前先在当前 session 获取 snapshot，根据真实页面状态只生成下一条命令并立即执行，不创建整份预生成计划。观察命令也会进入同一报告和审计日志：
 
 ```bash
-python3 cases-repo/runner/pw-cli-log.py --case TC002 --nl '在待办输入框中输入 Buy groceries 并回车' --log-file logs/commands.jsonl -- \
-  playwright-cli -s=tc002 fill "getByRole('textbox', { name: 'What needs to be done?' })" "Buy groceries"
+python3 cases-repo/runner/run-all.py --config config.json --case TC002 \
+  --live-step --title "添加两条待办并勾选第一条" --session tc002 \
+  --nl '在待办输入框中输入 Buy groceries 并回车' --phase observe \
+  --command-json '["playwright-cli","-s=tc002","snapshot"]'
 ```
 
-计划 JSON 中的 `command` 是参数数组，例如：
-
-```json
-{"nl":"在待办输入框中输入 Buy groceries 并回车","command":["playwright-cli","-s=tc002","fill","getByRole('textbox', { name: 'What needs to be done?' })","Buy groceries"]}
-```
-
-`logs/commands.jsonl` 每个步骤一行，记录原始 `nl_step`、实际 `cmd` 参数数组、退出码和输出。每次运行结束后，runner 会调用 `summarize.py` 同时生成 `report.md` 和 `report.html`。HTML 报告中的截图以小图显示，点击可在当前页面放大；点击大图即可关闭，原始截图文件保存在 `attachment/`：
+根据 snapshot 生成并立即执行下一条动作。首条 live-step 自动创建报告目录；后续命令传相同的 `--run-dir`：
 
 ```bash
-# 执行单个用例；先生成对应 plans/TC002.json，再只运行 TC002
-python3 cases-repo/runner/run-all.py --config config.json --case TC002
-
-# 执行一条后续用例并追加到首条用例创建的同一份报告
-python3 cases-repo/runner/run-all.py --config config.json --case TC003 --run-dir reports/run-YYYYMMDD_HHMMSS
-
-# 不指定 --case 时仍会直接执行计划目录内的全部已有计划
-python3 cases-repo/runner/run-all.py --config config.json
+python3 cases-repo/runner/run-all.py --config config.json --case TC002 \
+  --live-step --title "添加两条待办并勾选第一条" --session tc002 \
+  --nl '在待办输入框中输入 Buy groceries 并回车' --phase execute \
+  --command-json '["playwright-cli","-s=tc002","fill","getByRole('\''textbox'\'', { name: '\''What needs to be done?'\'' })","Buy groceries","--submit"]' \
+  --run-dir reports/run-YYYYMMDD_HHMMSS
 ```
 
-按 `all` 或范围运行时，Skill 会逐条读取 Markdown、生成当前用例计划并立即调用 runner 执行，再继续下一条；每次调用都指定一个 `--case`。第一条调用创建报告目录，后续调用用 `--run-dir` 把结果追加到同一份报告中。runner 也支持重复 `--case` 直接执行多个已有计划，但这不用于 Skill 的按需翻译流程。
+最后一条操作和断言通过后显式完成用例。失败步骤会自动将用例标为 FAIL，不可再追加步骤；未完成的用例保留 RUNNING 状态：
+
+```bash
+python3 cases-repo/runner/run-all.py --config config.json --case TC002 \
+  --finish-live --run-dir reports/run-YYYYMMDD_HHMMSS
+```
+
+`logs/commands.jsonl` 每个命令一行，记录原始 `nl_step`、命令参数数组、observe/execute 阶段、退出码和输出。每条命令执行后都会尝试截图并刷新 Markdown/HTML 报告。HTML 报告中的截图以小图显示，点击可放大；原始图片保存在 `attachment/`。
+runner 会要求页面动作之间至少有一次 `--phase observe`，避免在没有新页面依据时连续生成操作。
+
+兼容性：旧的 `plans/TCxxx.json` 静态计划仍可通过 `run-all.py --case TCxxx` 执行；新流程不再依赖预生成计划。按 `all` 运行时，每个用例都在前一个用例完成后才开始，并将所有结果追加到同一报告目录。
 
 ## 新增用例
 
@@ -107,7 +110,8 @@ python3 cases-repo/runner/run-all.py --config config.json
 
 ## 注意事项
 
-- **agent 是翻译器**：自然语言 → 命令的转换发生在执行时（LLM 理解），写用例零成本
-- **元素定位**：先用 `snapshot` / `find` 探查正式会话中的真实页面语义；优先使用 role、label、text locator。快照 ref 是会话临时引用，不能跨会话写入计划复用
+- **当前状态驱动**：自然语言 → 单条命令的转换发生在每步执行时；下一条命令只能依据前一步之后的页面状态生成
+- **元素定位**：先用 `snapshot` / `find` 探查正式会话中的真实页面语义；优先使用 role、label、text locator。页面变化后重新观察，不复用旧快照 ref
 - **会话隔离**：每个用例独立 `-s=<session>`，避免状态串扰
-- **失败即停**：任一步失败立即停止该用例，记录原因，继续下一个
+- **失败即停**：任一步失败立即停止该用例，记录原因，继续下一个用例；未显式完成的用例不会被报告为 PASS
+- **站点防护**：遇到 CAPTCHA 或安全验证时如实记录，不尝试绕过

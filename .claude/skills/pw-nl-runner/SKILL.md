@@ -1,50 +1,57 @@
 ---
 name: pw-nl-runner
-description: 从指定Git仓库读取自然语言Markdown测试用例，翻译成结构化执行计划plans/TCxxx.json；调用run_all.py批量执行playwright-cli，每条步骤自动截图存入独立run报告目录/attachment，日志保存自然语言步骤与执行命令对应关系，自动生成报告。用户要求批量运行自然语言UI用例时启用。
+description: 从指定Git仓库读取自然语言Markdown测试用例，逐步观察当前页面、生成并立即执行下一条Playwright操作，自动记录日志、截图并生成报告。
 ---
 
-# pw-nl-runner 自然语言测试用例批量执行器
+# pw-nl-runner 自然语言 Playwright 用例执行器
 
 ## 输入参数
-- git_repo: 用例Git仓库地址（本地路径/https/ssh）
-- filter: 可选，用例过滤 TC001 / TC001-TC003 / all
-- work_root: 执行本 Skill 时的当前工作目录；开始时通过 `pwd` 获取并作为工程根目录，后续路径均相对该目录解析
+- `git_repo`：用例 Git 仓库地址（本地路径/https/ssh）
+- `filter`：可选，用例过滤 `TC001` / `TC001-TC003` / `all`
+- `work_root`：执行本 Skill 时的当前工作目录；开始时通过 `pwd` 获取并作为工程根目录
 
 ## 执行流程
-1. **拉取/更新用例仓库**
-    - 本地不存在：git clone 到 `cases-repo`
-    - 已存在：git pull 更新最新用例
-2. **确定要执行的用例**
-    - 按 `filter` 找到对应的 `cases/TCxxx.md`
-    - 按用例 ID 排序形成本次待运行清单
-3. **逐用例生成并执行计划**
-    - 对清单中的每个用例，依次解析其frontmatter、前置条件、自然语言步骤和期望结果；只生成当前用例的 `plans/TCxxx.json`，并立即执行，完成后才开始翻译下一条用例。禁止先为全部用例生成计划再批量执行
-    - 单用例：`python3 cases-repo/runner/run-all.py --config config.json --case TCxxx`
-    - 多用例/all：第一条计划执行时不传 `--run-dir`，记录 runner 输出的报告目录；后续每条计划执行时传入该目录，追加到同一份报告：`python3 cases-repo/runner/run-all.py --config config.json --case TCyyy --run-dir reports/run-YYYYMMDD_HHMMSS`
-    - 每次 runner 调用必须显式指定当前 `--case`，避免 plans 目录中的旧计划导致额外用例被执行；每条用例失败后也继续处理清单中的下一条
-    - 每个计划步骤翻译成playwright-cli命令，必须对照官方skill确认语法
-    - 计划中的命令使用参数数组，避免空格、引号被拆坏；runner保留自然语言步骤与实际命令的对应关系
-    - 元素定位优先使用有实际页面依据的语义 locator（role、label、text）；先在该用例的正式浏览器会话中 snapshot/find 探查页面，不要臆造定位器
-    - snapshot ref（如 `e8`）是会话内临时引用，禁止从探查会话复制到计划供另一会话复用；仅在同一会话内即时探查和操作时使用
-4. **收尾并汇总整批结果**
-    - 每个用例执行完，报告及截图会追加到同一个 `reports/run-YYYYMMDD_HHMMSS/` 目录；runner自动刷新`report.json`、`report.md`和`report.html`
-    - 自动新建 `reports/run-YYYYMMDD_HHMMSS/`，包含`attachment`文件夹
-    - **每一条命令，无论成功失败，自动截图保存到本次run的attachment目录**
-    - 审计日志 `logs/commands.jsonl` 保存【原始自然语言步骤 ↔ 真实执行命令】一一对应关系
-    - 执行结束**自动调用summarize.py生成report.md和report.html**，不需要手动执行
+1. **更新用例仓库**
+   - 本地不存在：克隆到 `cases-repo`
+   - 已存在：尝试 `git pull`；如仓库没有 remote，明确说明并使用本地用例
+2. **确定用例顺序**
+   - 按 filter 找到 `cases/TCxxx.md`，按用例 ID 排序
+   - 每个用例使用独立浏览器 session；仅在用例明确要求时使用其他 session 或 storage state
+3. **逐条用例、逐条命令地执行（强制）**
+   - 读取当前用例 frontmatter、前置条件、操作步骤和期望结果。**不要预先生成整份 JSON 执行计划，也不要为尚未执行的步骤臆造定位器。**
+   - 将当前自然语言步骤拆成需要的浏览器命令。在执行每个动作前，根据当前真实页面快照，只生成当前这一条命令并立即执行；若同一步需要多个命令，每条命令也依次执行，必要时重新观察页面。
+   - 初始页面尚未打开时，可直接根据用例明确给出的 URL 生成首次 `open` 命令。此后，在生成下一条页面相关操作前，先在**同一个正式用例 session** 中运行 `snapshot`，读取 URL、页面内容和控件；再结合当前自然语言步骤生成并执行动作。
+   - 观察命令使用 runner 的 live 模式，`--phase observe`；浏览器动作及断言使用 `--phase execute`。二者都要使用命令参数数组，并保持原始自然语言步骤不变：
+     ```bash
+     python3 cases-repo/runner/run-all.py --config config.json --case TCxxx \
+       --live-step --title "用例标题" --session tcxxx \
+       --nl "当前用例中的原始自然语言步骤" --phase observe \
+       --command-json '["playwright-cli","-s=tcxxx","snapshot"]'
+     ```
+   - 首条 live 命令不传 `--run-dir`；记下输出的报告目录。当前用例及后续用例的每一条 live 命令都传相同的 `--run-dir reports/run-YYYYMMDD_HHMMSS`。每次输出中的页面结果是后续生成命令的事实依据。
+   - runner 会拒绝连续的 `execute` 命令；每次页面操作后，下一条操作前必须先执行一次 `observe`。
+   - 对每条期望结果，在实际操作到达相应页面后，先观察当前状态，再生成明确、可验证的断言命令；断言失败即停止当前用例，不继续臆测执行。
+   - 页面快照里的临时 ref 只属于当前 session 和当前页面状态。页面变化后重新 snapshot；优先用实际页面支持的 role、label、text 等语义 locator。
+   - 每条命令执行后检查 runner 输出和报告状态。命令失败时用例会被标为 `FAIL`，不要再追加该用例的操作；继续执行清单中的下一用例。
+   - 当前用例所有操作和断言都成功后，显式完成用例：
+     ```bash
+     python3 cases-repo/runner/run-all.py --config config.json --case TCxxx \
+       --finish-live --run-dir reports/run-YYYYMMDD_HHMMSS
+     ```
+   - 不调用 `--finish-live` 的用例会在报告中保留 `RUNNING`，不会被误报为通过。
+4. **报告与审计**
+   - runner 在每条观察/动作命令后更新同一报告目录中的 `report.json`、`report.md` 和 `report.html`。
+   - 每条命令都自动尝试截图到 `attachment/`；截图命令是 optional，截图失败不改变用例结果。
+   - `logs/commands.jsonl` 记录原始自然语言步骤、命令、阶段（observe/execute/screenshot）、退出码和输出。
+   - `RUNNING`、`PASS` 和 `FAIL` 状态在报告中分别显示；单个用例失败不阻止后续用例。
 5. **结果输出**
-    - 汇总PASS/FAIL统计
-    - 输出本次报告目录路径，Markdown/HTML报告+截图附件全部在该目录内
-    - 失败用例保留所有步骤截图用于排查
+   - 汇总 PASS/FAIL/RUNNING 数量
+   - 提供本次报告目录、Markdown/HTML 报告和附件目录
+   - 简述失败用例和失败步骤
 
 ## 强制约束
-1. 每个用例使用独立浏览器session，状态隔离；如需复用登录态，使用storage-state保存/加载
-2. 截图命令标记为optional：截图失败不判定用例失败，仅留证据
-3. 日志必须记录nl_step（原始自然语言文本）与执行cmd，保持一一对应
-4. 禁止修改plans目录以外的业务代码；产物只写入logs/、reports/目录
-5. 翻译阶段如页面元素描述模糊，优先执行snapshot探查页面，不要臆造定位器
-
-## 返回给用户的内容
-- 用例执行汇总表
-- 报告文件夹完整路径
-- 失败用例简要原因
+1. 每个用例使用独立浏览器 session，状态隔离；不要把一个用例的登录态或页面状态带入另一个用例。
+2. 严格按当前用例步骤执行，不可跳步或自行增加用户未要求的业务操作。
+3. 每条动作必须基于当前页面实际快照；页面状态变化后不可复用旧快照中的临时 ref。
+4. 对动态数据、导航和分支先观察真实页面结果，再生成后续命令。
+5. 不绕过 CAPTCHA、安全验证、登录授权等站点保护；遇到此类页面按失败或阻塞记录。

@@ -10,6 +10,11 @@ def main():
     parser.add_argument("--nl", required=True, help="原始自然语言步骤文本")
     parser.add_argument("--log-file", required=True)
     parser.add_argument("--optional", default="false")
+    parser.add_argument(
+        "--phase",
+        choices=("observe", "execute", "screenshot"),
+        default="execute",
+    )
     parser.add_argument("rest", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
@@ -26,6 +31,7 @@ def main():
         "ts": time.time(),
         "case_id": args.case,
         "nl_step": args.nl,
+        "phase": args.phase,
         "cmd": cmd,
         "exit_code": proc.returncode,
         "stdout": proc.stdout,

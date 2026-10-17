@@ -7,7 +7,8 @@ from pathlib import Path
 def render_html(run_data):
     cases = run_data["cases"]
     pass_count = sum(case["status"] == "PASS" for case in cases)
-    fail_count = len(cases) - pass_count
+    fail_count = sum(case["status"] == "FAIL" for case in cases)
+    running_count = sum(case["status"] == "RUNNING" for case in cases)
 
     lines = [
         "<!doctype html>",
@@ -17,14 +18,14 @@ def render_html(run_data):
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         f"<title>测试执行报告 | {html.escape(str(run_data['run_ts']))}</title>",
         "<style>",
-        ":root{color-scheme:light;--ink:#1f2937;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--pass:#15803d;--fail:#b91c1c;}",
+        ":root{color-scheme:light;--ink:#1f2937;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--pass:#15803d;--fail:#b91c1c;--running:#b45309;}",
         "body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}",
         "main{max-width:1440px;margin:32px auto;padding:0 24px}",
         "h1{margin-bottom:4px}h2{margin-top:32px}",
         ".meta,.muted{color:var(--muted)}",
         ".summary{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}",
         ".card{background:white;border:1px solid var(--line);border-radius:10px;padding:12px 18px;min-width:100px}",
-        ".card strong{display:block;font-size:22px}.pass{color:var(--pass)}.fail{color:var(--fail)}",
+        ".card strong{display:block;font-size:22px}.pass{color:var(--pass)}.fail{color:var(--fail)}.running{color:var(--running)}",
         ".table-wrap{overflow-x:auto;background:white;border:1px solid var(--line);border-radius:10px}",
         "table{width:100%;border-collapse:collapse;min-width:900px}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid var(--line)}",
         "th{background:#f1f5f9;white-space:nowrap}tr:last-child td{border-bottom:0}",
@@ -44,17 +45,22 @@ def render_html(run_data):
         f'<div class="card">用例总数<strong>{len(cases)}</strong></div>',
         f'<div class="card pass">PASS<strong>{pass_count}</strong></div>',
         f'<div class="card fail">FAIL<strong>{fail_count}</strong></div>',
+        f'<div class="card running">进行中<strong>{running_count}</strong></div>',
         "</div>",
     ]
 
     for case in cases:
         case_id = html.escape(str(case["case_id"]))
         status = html.escape(str(case["status"]))
-        status_class = "pass" if case["status"] == "PASS" else "fail"
+        status_class = {
+            "PASS": "pass",
+            "FAIL": "fail",
+            "RUNNING": "running",
+        }.get(case["status"], "muted")
         lines.extend([
             f'<section><h2>{case_id} | {html.escape(str(case["title"]))} <span class="{status_class}">【{status}】</span></h2>',
             '<div class="table-wrap"><table>',
-            "<thead><tr><th>步骤序号</th><th>原始自然语言步骤</th><th>执行命令</th><th>结果</th><th>截图</th></tr></thead><tbody>",
+            "<thead><tr><th>序号</th><th>阶段</th><th>原始自然语言步骤</th><th>执行命令</th><th>结果</th><th>截图</th></tr></thead><tbody>",
         ])
         lightboxes = []
         for record in case["step_records"]:
@@ -67,6 +73,11 @@ def render_html(run_data):
             else:
                 result = "FAIL"
                 result_class = "fail"
+            phase = {
+                "observe": "页面观察",
+                "execute": "执行",
+                "screenshot": "截图",
+            }.get(record.get("phase", "execute"), "执行")
             screenshot_name = f"{case['case_id']}-step{record['step_idx']:02d}.png"
             screenshot_path = Path(run_data["attachment_dir"]) / screenshot_name
             if screenshot_path.is_file():
@@ -93,6 +104,7 @@ def render_html(run_data):
             lines.append(
                 "<tr>"
                 f"<td>{record['step_idx']}</td>"
+                f"<td>{phase}</td>"
                 f"<td>{html.escape(str(record['nl']))}</td>"
                 f'<td class="command"><code>{html.escape(str(record["command"]))}</code></td>'
                 f'<td class="{result_class}">{result}</td>'
@@ -124,24 +136,35 @@ def main():
 
     total = len(run_data["cases"])
     pass_cnt = sum(1 for c in run_data["cases"] if c["status"] == "PASS")
-    fail_cnt = total - pass_cnt
-    md_lines.append(f"## 汇总统计：共{total}个用例，✅ PASS:{pass_cnt} | ❌ FAIL:{fail_cnt}")
+    fail_cnt = sum(1 for c in run_data["cases"] if c["status"] == "FAIL")
+    running_cnt = sum(1 for c in run_data["cases"] if c["status"] == "RUNNING")
+    md_lines.append(
+        f"## 汇总统计：共{total}个用例，✅ PASS:{pass_cnt} | "
+        f"❌ FAIL:{fail_cnt} | ⏳ 进行中:{running_cnt}"
+    )
     md_lines.append("")
 
     for case in run_data["cases"]:
         md_lines.append(f"## {case['case_id']} | {case['title']} | 【{case['status']}】")
-        md_lines.append("|步骤序号|原始自然语言步骤|执行命令|执行结果|截图|")
-        md_lines.append("|---|---|---|---|---|")
+        md_lines.append("|序号|阶段|原始自然语言步骤|执行命令|执行结果|截图|")
+        md_lines.append("|---|---|---|---|---|---|")
         for rec in case["step_records"]:
             nl = rec["nl"].replace("|", "\\|")
             cmd = rec["command"].replace("|", "\\|")
+            phase = {
+                "observe": "页面观察",
+                "execute": "执行",
+                "screenshot": "截图",
+            }.get(rec.get("phase", "execute"), "执行")
             if rec.get("status") == "SKIPPED":
                 res = "⏭ SKIP"
             else:
                 res = "✅ PASS" if rec.get("exit_code") == 0 else "❌ FAIL"
             screenshot_name = f"{case['case_id']}-step{rec['step_idx']:02d}.png"
             screenshot_link = f"[查看截图](attachment/{screenshot_name})"
-            md_lines.append(f"|{rec['step_idx']}|{nl}|`{cmd}`|{res}|{screenshot_link}|")
+            md_lines.append(
+                f"|{rec['step_idx']}|{phase}|{nl}|`{cmd}`|{res}|{screenshot_link}|"
+            )
         md_lines.append("")
 
     md_content = "\n".join(md_lines)
