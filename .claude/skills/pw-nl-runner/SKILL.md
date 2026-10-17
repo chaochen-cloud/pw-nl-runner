@@ -27,10 +27,10 @@ description: 从指定Git仓库读取自然语言Markdown测试用例，翻译�
     - 自动新建 `reports/run-YYYYMMDD_HHMMSS/`，包含`attachment`文件夹
     - **每一条命令，无论成功失败，自动截图保存到本次run的attachment目录**
     - 审计日志 `logs/commands.jsonl` 保存【原始自然语言步骤 ↔ 真实执行命令】一一对应关系
-    - 执行结束**自动调用summarize.py生成report.md**，不需要手动执行
+    - 执行结束**自动调用summarize.py生成report.md和report.html**，不需要手动执行
 5. **结果输出**
     - 汇总PASS/FAIL统计
-    - 输出本次报告目录路径，markdown报告+截图附件全部在该目录内
+    - 输出本次报告目录路径，Markdown/HTML报告+截图附件全部在该目录内
     - 失败用例保留所有步骤截图用于排查
 
 ## 强制约束

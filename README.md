@@ -81,7 +81,7 @@ python3 cases-repo/runner/pw-cli-log.py --case TC002 --nl '在待办输入框中
 {"nl":"在待办输入框中输入 Buy groceries 并回车","command":["playwright-cli","-s=tc002","fill","getByRole('textbox', { name: 'What needs to be done?' })","Buy groceries"]}
 ```
 
-`logs/commands.jsonl` 每个步骤一行，记录原始 `nl_step`、实际 `cmd` 参数数组、退出码和输出。每次运行结束后，runner 会调用 `summarize.py` 写出本次报告的 `report.md`：
+`logs/commands.jsonl` 每个步骤一行，记录原始 `nl_step`、实际 `cmd` 参数数组、退出码和输出。每次运行结束后，runner 会调用 `summarize.py` 同时生成 `report.md` 和 `report.html`。HTML 报告中的截图以小图显示，点击可在当前页面放大；点击大图即可关闭，原始截图文件保存在 `attachment/`：
 
 ```bash
 python3 cases-repo/runner/run-all.py --config config.json

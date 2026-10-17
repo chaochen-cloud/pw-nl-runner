@@ -153,6 +153,7 @@ def main():
     print(f"📁 报告目录：{run_dir}")
     print(f"🖼️ 截图附件目录：{attachment_dir}")
     print(f"📄 可视化报告：{run_dir}/report.md")
+    print(f"🌐 HTML报告：{run_dir}/report.html")
 
 
 if __name__ == "__main__":
