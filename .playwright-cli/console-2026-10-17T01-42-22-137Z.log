@@ -1,0 +1,27 @@
+[    1540ms] [INFO] %cDownload the React DevTools for a better development experience: https://fb.me/react-devtools font-weight:bold @ https://demo.playwright.dev/todomvc/js/bundle.js:20881
+[    1675ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   26816ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   26880ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   26951ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   27080ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   27227ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   27308ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   27403ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   27489ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   27592ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   31550ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   31711ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   32593ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   32873ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   40126ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   40193ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   40910ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[   41003ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[  147632ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[  147685ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[  147760ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[  148158ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[  148275ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[  148320ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[  148370ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
+[  148415ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://demo.playwright.dev/favicon.ico:0
