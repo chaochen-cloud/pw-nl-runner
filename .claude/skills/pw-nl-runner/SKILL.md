@@ -45,6 +45,7 @@ description: 从指定Git仓库读取自然语言Markdown测试用例，逐步�
    - 每条命令都自动尝试截图到 `attachment/`；截图命令是 optional，截图失败不改变用例结果。
    - `logs/commands.jsonl` 记录原始自然语言步骤、命令、阶段（observe/execute/screenshot/cleanup）、退出码和输出。
    - session 关闭动作也写入审计日志和报告；关闭失败将用例标为 FAIL 并显示错误。
+   - Markdown 和 HTML 报告中，每个用例的步骤表下方都附有该用例源 Markdown 的原始内容。
    - `RUNNING`、`PASS` 和 `FAIL` 状态在报告中分别显示；单个用例失败不阻止后续用例。
 5. **结果输出**
    - 汇总 PASS/FAIL/RUNNING 数量

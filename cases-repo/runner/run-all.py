@@ -85,6 +85,12 @@ def get_command_session(command, default_session):
     return default_session
 
 
+def load_original_case(root, case_id):
+    case_path = root / "cases-repo" / "cases" / f"{case_id}.md"
+    with case_path.open("r", encoding="utf-8") as case_file:
+        return case_file.read()
+
+
 def save_run(root, run_dir, run_summary):
     with open(run_dir / "report.json", "w", encoding="utf-8") as f:
         json.dump(run_summary, f, indent=2, ensure_ascii=False)
@@ -167,6 +173,7 @@ def run_live_step(root, args, log_file):
             "case_id": case_id,
             "title": args.title,
             "session": args.session,
+            "source_content": load_original_case(root, case_id),
             "status": "RUNNING",
             "execution_mode": "live",
             "sessions": [],
@@ -180,6 +187,7 @@ def run_live_step(root, args, log_file):
         or case_result.get("session") != args.session
     ):
         raise ValueError(f"Case {case_id} is not an appendable live case")
+    case_result.setdefault("source_content", load_original_case(root, case_id))
 
     if (
         args.phase == "execute"
@@ -358,6 +366,7 @@ def main():
         case_result = {
             "case_id": case_id,
             "title": case_title,
+            "source_content": load_original_case(root, case_id),
             "status": "PASS",
             "step_records": []
         }

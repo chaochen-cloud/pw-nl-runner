@@ -67,6 +67,7 @@ class LiveRunnerTests(unittest.TestCase):
             self.assertIn(sys.executable, record["cmd"])
 
     def test_live_report_marks_in_progress_without_counting_as_failure(self):
+        source_content = "---\nid: TC001\n---\n## <script>alert('x')</script>\n"
         run_data = {
             "run_ts": "test",
             "run_dir": "/tmp/run",
@@ -76,6 +77,7 @@ class LiveRunnerTests(unittest.TestCase):
                     "case_id": "TC001",
                     "title": "Live case",
                     "status": "RUNNING",
+                    "source_content": source_content,
                     "step_records": [
                         {
                             "step_idx": 0,
@@ -95,6 +97,12 @@ class LiveRunnerTests(unittest.TestCase):
         self.assertIn("【RUNNING】", html_report)
         self.assertIn("页面观察", html_report)
         self.assertIn("FAIL<strong>0</strong>", html_report)
+        self.assertIn("<details class=\"source-case\">", html_report)
+        self.assertIn("&lt;script&gt;alert(&#x27;x&#x27;)&lt;/script&gt;", html_report)
+        self.assertNotIn("<script>alert('x')</script>", html_report)
+        markdown_report = SUMMARIZER["render_markdown"](run_data)
+        self.assertIn("<summary>原始用例内容</summary>", markdown_report)
+        self.assertIn("&lt;script&gt;alert(&#x27;x&#x27;)&lt;/script&gt;", markdown_report)
 
     def test_close_case_sessions_closes_each_distinct_browser_session(self):
         close_case_sessions = RUNNER["close_case_sessions"]
@@ -135,6 +143,10 @@ class LiveRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / "reports").mkdir()
+            cases_dir = root / "cases-repo" / "cases"
+            cases_dir.mkdir(parents=True)
+            source_content = "---\nid: TC010\n---\n## Original test case\n"
+            (cases_dir / "TC010.md").write_text(source_content, encoding="utf-8")
 
             def successful_command(*_args, **_kwargs):
                 return SimpleNamespace(returncode=0, stdout="Page snapshot", stderr="")
@@ -157,6 +169,7 @@ class LiveRunnerTests(unittest.TestCase):
             report_path = next((root / "reports").glob("run-*/report.json"))
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(report["cases"][0]["status"], "RUNNING")
+            self.assertEqual(report["cases"][0]["source_content"], source_content)
             self.assertEqual(len(report["cases"][0]["step_records"]), 1)
             args.run_dir = str(report_path.parent)
             args.nl = "Add another action without observing"
@@ -199,6 +212,12 @@ class LiveRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / "reports").mkdir()
+            cases_dir = root / "cases-repo" / "cases"
+            cases_dir.mkdir(parents=True)
+            (cases_dir / "TC011.md").write_text(
+                "---\nid: TC011\n---\nFailing case\n",
+                encoding="utf-8",
+            )
             args = SimpleNamespace(
                 case_ids=["TC011"],
                 title="Failing case",

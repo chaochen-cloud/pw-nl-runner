@@ -33,6 +33,8 @@ def render_html(run_data):
         ".screenshot-thumb{display:inline-block;line-height:0}.screenshot-thumb img{display:block;width:140px;max-height:96px;object-fit:cover;border:1px solid var(--line);border-radius:5px;cursor:zoom-in}",
         ".lightbox{display:none}.lightbox:target{display:flex;position:fixed;inset:0;z-index:10;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.88);cursor:zoom-out}",
         ".lightbox img{display:block;max-width:96vw;max-height:94vh;object-fit:contain;background:white;box-shadow:0 12px 48px rgba(0,0,0,.4)}",
+        ".source-case{margin:12px 0 24px;padding:12px 16px;background:white;border:1px solid var(--line);border-radius:10px}",
+        ".source-case summary{cursor:pointer;font-weight:600}.source-case pre{white-space:pre-wrap;overflow-wrap:anywhere}",
         "a{color:#0369a1}a:hover{color:#0c4a6e}",
         "@media(max-width:640px){main{margin:20px auto;padding:0 12px}}",
         "</style>",
@@ -113,10 +115,81 @@ def render_html(run_data):
                 "</tr>"
             )
         lines.extend(["</tbody></table></div></section>"])
+        source_content = case.get("source_content", "")
+        lines.extend([
+            '<details class="source-case">',
+            "<summary>原始用例内容</summary>",
+            f"<pre>{html.escape(source_content)}</pre>",
+            "</details>",
+        ])
         lines.extend(lightboxes)
 
     lines.extend(["</main>", "</body>", "</html>"])
     return "\n".join(lines) + "\n"
+
+
+def render_markdown(run_data):
+    md_lines = [
+        f"# 测试执行报告 | {run_data['run_ts']}",
+        f"> 运行根目录：{run_data['run_dir']}",
+        f"> 截图附件目录：{run_data['attachment_dir']}",
+        "",
+    ]
+
+    total = len(run_data["cases"])
+    pass_cnt = sum(1 for case in run_data["cases"] if case["status"] == "PASS")
+    fail_cnt = sum(1 for case in run_data["cases"] if case["status"] == "FAIL")
+    running_cnt = sum(
+        1 for case in run_data["cases"] if case["status"] == "RUNNING"
+    )
+    md_lines.extend([
+        f"## 汇总统计：共{total}个用例，✅ PASS:{pass_cnt} | "
+        f"❌ FAIL:{fail_cnt} | ⏳ 进行中:{running_cnt}",
+        "",
+    ])
+
+    for case in run_data["cases"]:
+        md_lines.extend([
+            f"## {case['case_id']} | {case['title']} | 【{case['status']}】",
+            "|序号|阶段|原始自然语言步骤|执行命令|执行结果|截图|",
+            "|---|---|---|---|---|---|",
+        ])
+        for rec in case["step_records"]:
+            nl = rec["nl"].replace("|", "\\|")
+            cmd = rec["command"].replace("|", "\\|")
+            phase = {
+                "observe": "页面观察",
+                "execute": "执行",
+                "screenshot": "截图",
+                "cleanup": "会话清理",
+            }.get(rec.get("phase", "execute"), "执行")
+            if rec.get("status") == "SKIPPED":
+                result = "⏭ SKIP"
+            else:
+                result = "✅ PASS" if rec.get("exit_code") == 0 else "❌ FAIL"
+            screenshot_name = f"{case['case_id']}-step{rec['step_idx']:02d}.png"
+            screenshot_path = Path(run_data["attachment_dir"]) / screenshot_name
+            screenshot_link = (
+                f"[查看截图](attachment/{screenshot_name})"
+                if screenshot_path.is_file()
+                else "无截图"
+            )
+            md_lines.append(
+                f"|{rec['step_idx']}|{phase}|{nl}|`{cmd}`|{result}|{screenshot_link}|"
+            )
+        md_lines.extend([
+            "",
+            "<details>",
+            "<summary>原始用例内容</summary>",
+            "",
+            "<pre>",
+            html.escape(case.get("source_content", "")),
+            "</pre>",
+            "</details>",
+            "",
+        ])
+
+    return "\n".join(md_lines)
 
 
 def main():
@@ -129,55 +202,16 @@ def main():
     with open(report_json, "r", encoding="utf-8") as f:
         run_data = json.load(f)
 
-    md_lines = []
-    md_lines.append(f"# 测试执行报告 | {run_data['run_ts']}")
-    md_lines.append(f"> 运行根目录：{run_data['run_dir']}")
-    md_lines.append(f"> 截图附件目录：{run_data['attachment_dir']}")
-    md_lines.append("")
-
-    total = len(run_data["cases"])
-    pass_cnt = sum(1 for c in run_data["cases"] if c["status"] == "PASS")
-    fail_cnt = sum(1 for c in run_data["cases"] if c["status"] == "FAIL")
-    running_cnt = sum(1 for c in run_data["cases"] if c["status"] == "RUNNING")
-    md_lines.append(
-        f"## 汇总统计：共{total}个用例，✅ PASS:{pass_cnt} | "
-        f"❌ FAIL:{fail_cnt} | ⏳ 进行中:{running_cnt}"
-    )
-    md_lines.append("")
-
+    cases_dir = run_dir.resolve().parent.parent / "cases-repo" / "cases"
     for case in run_data["cases"]:
-        md_lines.append(f"## {case['case_id']} | {case['title']} | 【{case['status']}】")
-        md_lines.append("|序号|阶段|原始自然语言步骤|执行命令|执行结果|截图|")
-        md_lines.append("|---|---|---|---|---|---|")
-        for rec in case["step_records"]:
-            nl = rec["nl"].replace("|", "\\|")
-            cmd = rec["command"].replace("|", "\\|")
-            phase = {
-                "observe": "页面观察",
-                "execute": "执行",
-                "screenshot": "截图",
-                "cleanup": "会话清理",
-            }.get(rec.get("phase", "execute"), "执行")
-            if rec.get("status") == "SKIPPED":
-                res = "⏭ SKIP"
-            else:
-                res = "✅ PASS" if rec.get("exit_code") == 0 else "❌ FAIL"
-            screenshot_name = f"{case['case_id']}-step{rec['step_idx']:02d}.png"
-            screenshot_path = Path(run_data["attachment_dir"]) / screenshot_name
-            screenshot_link = (
-                f"[查看截图](attachment/{screenshot_name})"
-                if screenshot_path.is_file()
-                else "无截图"
-            )
-            md_lines.append(
-                f"|{rec['step_idx']}|{phase}|{nl}|`{cmd}`|{res}|{screenshot_link}|"
-            )
-        md_lines.append("")
+        if "source_content" not in case:
+            source_path = cases_dir / f"{case['case_id']}.md"
+            if source_path.is_file():
+                case["source_content"] = source_path.read_text(encoding="utf-8")
 
-    md_content = "\n".join(md_lines)
     md_path = run_dir / "report.md"
     with open(md_path, "w", encoding="utf-8") as f:
-        f.write(md_content)
+        f.write(render_markdown(run_data))
 
     html_path = run_dir / "report.html"
     with open(html_path, "w", encoding="utf-8") as f:
