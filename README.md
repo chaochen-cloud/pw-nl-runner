@@ -70,7 +70,7 @@ cd cases-repo && git init && git add -A && git commit -m "init cases"
 
 ## 命令日志机制（核心）
 
-所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`。推荐 live-step 模式：执行操作批次前先在当前 session 获取 snapshot，根据真实页面状态只生成下一批命令并立即执行，不创建整份预生成计划。对于同一页面上目标明确、结果可预期的连续动作，可用一次 `run-code` 顺序执行，减少 CLI 往返；遇到导航、动态结果、条件分支或需要依据新页面内容的操作时，先单独执行并重新观察。观察命令也会进入同一报告和审计日志：
+所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`。推荐 live-step 模式：执行操作批次前先在当前 session 获取页面观察，根据真实页面状态只生成当前页面上到第一个不确定点为止的下一批命令并立即执行，不创建整份预生成计划。对于同一页面上目标明确、结果可预期的连续动作，可用一次 `run-code` 顺序执行，减少模型规划轮次和 CLI 往返；遇到导航、动态结果、条件分支或需要依据新页面内容的操作时，先单独执行并重新观察。页面观察优先使用 `snapshot <target>` 聚焦当前步骤相关控件/区域；刚导航到新页面或需要判断整体状态时使用完整 `snapshot`。观察命令也会进入同一报告和审计日志：
 
 ```bash
 python3 runner/run-all.py --config config.json --case TC002 \
