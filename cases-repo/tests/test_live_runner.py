@@ -104,6 +104,45 @@ class LiveRunnerTests(unittest.TestCase):
         self.assertIn("<summary>原始用例内容</summary>", markdown_report)
         self.assertIn("&lt;script&gt;alert(&#x27;x&#x27;)&lt;/script&gt;", markdown_report)
 
+    def test_html_screenshot_lightbox_has_reliable_close_controls_and_preserves_scroll(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            attachment_dir = Path(temp_dir) / "attachment"
+            attachment_dir.mkdir()
+            (attachment_dir / "TC001-step01.png").touch()
+            run_data = {
+                "run_ts": "test",
+                "run_dir": temp_dir,
+                "attachment_dir": str(attachment_dir),
+                "cases": [
+                    {
+                        "case_id": "TC001",
+                        "title": "Screenshot case",
+                        "status": "PASS",
+                        "source_content": "",
+                        "step_records": [
+                            {
+                                "step_idx": 1,
+                                "phase": "execute",
+                                "nl": "Open page",
+                                "command": "playwright-cli open",
+                                "exit_code": 0,
+                            }
+                        ],
+                    }
+                ],
+            }
+
+            html_report = SUMMARIZER["render_html"](run_data)
+
+        self.assertIn(".lightbox.open{display:flex", html_report)
+        self.assertIn('class="lightbox-close" type="button"', html_report)
+        self.assertIn("event.key === 'Escape'", html_report)
+        self.assertIn("event.target === activeLightbox", html_report)
+        self.assertIn("screenshotScrollY = window.scrollY", html_report)
+        self.assertIn("window.scrollTo(0, screenshotScrollY)", html_report)
+        self.assertNotIn(".lightbox:target", html_report)
+        self.assertNotIn("history.replaceState", html_report)
+
     def test_close_case_sessions_closes_each_distinct_browser_session(self):
         close_case_sessions = RUNNER["close_case_sessions"]
         case_result = {

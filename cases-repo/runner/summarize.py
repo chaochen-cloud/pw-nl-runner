@@ -31,7 +31,8 @@ def render_html(run_data):
         "th{background:#f1f5f9;white-space:nowrap}tr:last-child td{border-bottom:0}",
         "td.command{max-width:560px}code{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}",
         ".screenshot-thumb{display:inline-block;line-height:0}.screenshot-thumb img{display:block;width:140px;max-height:96px;object-fit:cover;border:1px solid var(--line);border-radius:5px;cursor:zoom-in}",
-        ".lightbox{display:none}.lightbox:target{display:flex;position:fixed;inset:0;z-index:10;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.88);cursor:zoom-out}",
+        ".lightbox{display:none}.lightbox.open{display:flex;position:fixed;inset:0;z-index:10;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.88);cursor:zoom-out}",
+        ".lightbox-close{position:absolute;top:16px;right:24px;border:0;border-radius:6px;padding:4px 12px;background:white;color:var(--ink);font-size:28px;line-height:1.2;cursor:pointer}",
         ".lightbox img{display:block;max-width:96vw;max-height:94vh;object-fit:contain;background:white;box-shadow:0 12px 48px rgba(0,0,0,.4)}",
         ".source-case{margin:12px 0 24px;padding:12px 16px;background:white;border:1px solid var(--line);border-radius:10px}",
         ".source-case summary{cursor:pointer;font-weight:600}.source-case pre{white-space:pre-wrap;overflow-wrap:anywhere}",
@@ -98,9 +99,11 @@ def render_html(run_data):
                     f'<img src="{screenshot_href}" alt="步骤 {record["step_idx"]} 截图"></a>'
                 )
                 lightboxes.append(
-                    f'<a class="lightbox" id="{screenshot_id}" href="#report-top" '
-                    f'aria-label="关闭放大截图"><img src="{screenshot_href}" '
-                    f'alt="步骤 {record["step_idx"]} 截图原图"></a>'
+                    f'<div class="lightbox" id="{screenshot_id}" role="dialog" '
+                    f'aria-modal="true" aria-label="放大查看步骤 {record["step_idx"]} 截图" '
+                    f'aria-hidden="true"><button class="lightbox-close" type="button" '
+                    f'aria-label="关闭放大截图">×</button><img src="{screenshot_href}" '
+                    f'alt="步骤 {record["step_idx"]} 截图原图"></div>'
                 )
             else:
                 screenshot_cell = '<span class="muted">无截图</span>'
@@ -124,7 +127,45 @@ def render_html(run_data):
         ])
         lines.extend(lightboxes)
 
-    lines.extend(["</main>", "</body>", "</html>"])
+    lines.extend([
+        "</main>",
+        "<script>",
+        "let screenshotScrollY = 0;",
+        "let screenshotTrigger = null;",
+        "let activeLightbox = null;",
+        "function closeScreenshot() {",
+        "  if (!activeLightbox) return;",
+        "  activeLightbox.classList.remove('open');",
+        "  activeLightbox.setAttribute('aria-hidden', 'true');",
+        "  activeLightbox = null;",
+        "  if (screenshotTrigger) screenshotTrigger.focus({ preventScroll: true });",
+        "  window.scrollTo(0, screenshotScrollY);",
+        "}",
+        "document.addEventListener('click', (event) => {",
+        "  const thumbnail = event.target.closest('.screenshot-thumb');",
+        "  if (thumbnail) {",
+        "    event.preventDefault();",
+        "    screenshotScrollY = window.scrollY;",
+        "    screenshotTrigger = thumbnail;",
+        "    activeLightbox = document.getElementById(thumbnail.hash.slice(1));",
+        "    if (!activeLightbox) return;",
+        "    activeLightbox.classList.add('open');",
+        "    activeLightbox.setAttribute('aria-hidden', 'false');",
+        "    activeLightbox.querySelector('.lightbox-close').focus();",
+        "    return;",
+        "  }",
+        "  if (activeLightbox && (event.target.closest('.lightbox-close') || event.target === activeLightbox)) {",
+        "    event.preventDefault();",
+        "    closeScreenshot();",
+        "  }",
+        "});",
+        "document.addEventListener('keydown', (event) => {",
+        "  if (event.key === 'Escape') closeScreenshot();",
+        "});",
+        "</script>",
+        "</body>",
+        "</html>",
+    ])
     return "\n".join(lines) + "\n"
 
 
