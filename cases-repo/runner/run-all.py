@@ -96,6 +96,43 @@ def save_run(root, run_dir, run_summary):
     subprocess.run(summarize_cmd, check=True)
 
 
+def close_case_sessions(root, case_result, log_file):
+    for session in dict.fromkeys(case_result.get("sessions", [])):
+        command_argv = ["playwright-cli", f"-s={session}", "close"]
+        step_idx = len(case_result["step_records"])
+        command_display = shlex.join(command_argv)
+        cmd_wrapper = [
+            "python3", str(root / "cases-repo/runner/pw-cli-log.py"),
+            "--case", case_result["case_id"],
+            "--nl", f"用例结束后关闭浏览器会话 {session}",
+            "--phase", "cleanup",
+            "--log-file", str(log_file),
+            "--",
+        ] + command_argv
+
+        start_t = time.time()
+        proc = subprocess.run(cmd_wrapper, capture_output=True, text=True)
+        end_t = time.time()
+        case_result["step_records"].append({
+            "case_id": case_result["case_id"],
+            "step_idx": step_idx,
+            "nl": f"用例结束后关闭浏览器会话 {session}",
+            "phase": "cleanup",
+            "command": command_display,
+            "exit_code": proc.returncode,
+            "stdout": proc.stdout,
+            "stderr": proc.stderr,
+            "duration": round(end_t - start_t, 3),
+            "timestamp": time.time(),
+        })
+        if proc.returncode != 0:
+            case_result["status"] = "FAIL"
+            print(
+                f"关闭 Playwright 会话 {session} 失败："
+                f"{proc.stderr or proc.stdout}"
+            )
+
+
 def run_live_step(root, args, log_file):
     if len(args.case_ids or []) != 1:
         raise ValueError("--live-step requires exactly one --case")
@@ -132,6 +169,7 @@ def run_live_step(root, args, log_file):
             "session": args.session,
             "status": "RUNNING",
             "execution_mode": "live",
+            "sessions": [],
             "step_records": [],
         }
         run_summary["cases"].append(case_result)
@@ -151,6 +189,10 @@ def run_live_step(root, args, log_file):
         raise ValueError(
             f"Observe the current page before generating the next action for {case_id}"
         )
+
+    for session in (args.session, command_session):
+        if session not in case_result["sessions"]:
+            case_result["sessions"].append(session)
 
     step_idx = len(case_result["step_records"])
     command_display = shlex.join(command_argv)
@@ -196,6 +238,9 @@ def run_live_step(root, args, log_file):
     ]
     subprocess.run(screenshot_cmd, capture_output=True, text=True)
 
+    if case_result["status"] == "FAIL":
+        close_case_sessions(root, case_result, log_file)
+
     save_run(root, run_dir, run_summary)
     print(proc.stdout, end="")
     if proc.stderr:
@@ -204,7 +249,7 @@ def run_live_step(root, args, log_file):
     print(f"用例状态：{case_result['status']}")
 
 
-def finish_live_case(root, args):
+def finish_live_case(root, args, log_file):
     if len(args.case_ids or []) != 1:
         raise ValueError("--finish-live requires exactly one --case")
     if not args.run_dir:
@@ -224,7 +269,9 @@ def finish_live_case(root, args):
             f"{case_result.get('status')}"
         )
 
-    case_result["status"] = "PASS"
+    close_case_sessions(root, case_result, log_file)
+    if case_result["status"] == "RUNNING":
+        case_result["status"] = "PASS"
     save_run(root, run_dir, run_summary)
     print(f"报告目录：{run_dir}")
     print(f"用例状态：{case_result['status']}")
@@ -276,7 +323,7 @@ def main():
             if args.live_step:
                 run_live_step(root, args, log_file)
             else:
-                finish_live_case(root, args)
+                finish_live_case(root, args, log_file)
         except ValueError as exc:
             parser.error(str(exc))
         return
@@ -336,6 +383,12 @@ def main():
                 case_result["step_records"].append(record)
                 continue
 
+            command_session = get_command_session(command_argv, plan.get("session", ""))
+            if command_session and command_session not in case_result.setdefault(
+                "sessions", []
+            ):
+                case_result["sessions"].append(command_session)
+
             # 调用日志包装器执行playwright命令
             cmd_wrapper = [
                 "python3", str(root / "cases-repo/runner/pw-cli-log.py"),
@@ -380,12 +433,13 @@ def main():
                 "--optional", "true",
                 "--log-file", str(log_file),
                 "--",
-                "playwright-cli", "-s", plan["session"],
+                "playwright-cli", f"-s={command_session or plan['session']}",
                 "screenshot", "--filename", screenshot_path
             ]
             # 截图命令为可选，截图失败不中断用例执行
             subprocess.run(screenshot_cmd, capture_output=True, text=True)
 
+        close_case_sessions(root, case_result, log_file)
         run_summary["cases"].append(case_result)
 
     save_run(root, run_dir, run_summary)

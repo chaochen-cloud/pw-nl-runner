@@ -96,6 +96,39 @@ class LiveRunnerTests(unittest.TestCase):
         self.assertIn("页面观察", html_report)
         self.assertIn("FAIL<strong>0</strong>", html_report)
 
+    def test_close_case_sessions_closes_each_distinct_browser_session(self):
+        close_case_sessions = RUNNER["close_case_sessions"]
+        case_result = {
+            "case_id": "TC013",
+            "sessions": ["tc013", "tc013-api"],
+            "step_records": [],
+            "status": "RUNNING",
+        }
+        results = [
+            SimpleNamespace(returncode=0, stdout="Closed tc013", stderr=""),
+            SimpleNamespace(returncode=0, stdout="Closed tc013-api", stderr=""),
+        ]
+
+        with patch("subprocess.run", side_effect=results) as commands:
+            with contextlib.redirect_stdout(io.StringIO()):
+                close_case_sessions(ROOT, case_result, ROOT / "logs/commands.jsonl")
+
+        self.assertEqual(
+            [record["phase"] for record in case_result["step_records"]],
+            ["cleanup", "cleanup"],
+        )
+        close_argv = [
+            call.args[0][-3:]
+            for call in commands.call_args_list
+        ]
+        self.assertEqual(
+            close_argv,
+            [
+                ["playwright-cli", "-s=tc013", "close"],
+                ["playwright-cli", "-s=tc013-api", "close"],
+            ],
+        )
+
     def test_live_steps_append_to_one_case_and_finish(self):
         run_live_step = RUNNER["run_live_step"]
         finish_live_case = RUNNER["finish_live_case"]
@@ -146,11 +179,20 @@ class LiveRunnerTests(unittest.TestCase):
             self.assertEqual(report["cases"][0]["step_records"][1]["phase"], "observe")
 
             finish_args = SimpleNamespace(case_ids=["TC010"], run_dir=str(report_path.parent))
-            with patch("subprocess.run", side_effect=successful_command):
+            with patch("subprocess.run", side_effect=successful_command) as commands:
                 with contextlib.redirect_stdout(io.StringIO()):
-                    finish_live_case(root, finish_args)
+                    finish_live_case(
+                        root, finish_args, root / "logs/commands.jsonl"
+                    )
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(report["cases"][0]["status"], "PASS")
+            self.assertTrue(
+                any(
+                    command[-2:] == ["-s=tc010", "close"]
+                    for command in (call.args[0] for call in commands.call_args_list)
+                    if isinstance(command, list)
+                )
+            )
 
     def test_failed_live_step_marks_case_terminal(self):
         run_live_step = RUNNER["run_live_step"]
@@ -171,15 +213,30 @@ class LiveRunnerTests(unittest.TestCase):
             command_results = [
                 SimpleNamespace(returncode=1, stdout="", stderr="Navigation failed"),
                 SimpleNamespace(returncode=1, stdout="", stderr="Screenshot unavailable"),
+                SimpleNamespace(returncode=0, stdout="Closed", stderr=""),
                 SimpleNamespace(returncode=0, stdout="", stderr=""),
             ]
-            with patch("subprocess.run", side_effect=command_results):
+            with patch("subprocess.run", side_effect=command_results) as commands:
                 with contextlib.redirect_stdout(io.StringIO()):
                     run_live_step(root, args, root / "logs/commands.jsonl")
 
             report_path = next((root / "reports").glob("run-*/report.json"))
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(report["cases"][0]["status"], "FAIL")
+            cleanup = [
+                record
+                for record in report["cases"][0]["step_records"]
+                if record["phase"] == "cleanup"
+            ]
+            self.assertEqual(len(cleanup), 1)
+            self.assertEqual(cleanup[0]["exit_code"], 0)
+            self.assertTrue(
+                any(
+                    command[-2:] == ["-s=tc011", "close"]
+                    for command in (call.args[0] for call in commands.call_args_list)
+                    if isinstance(command, list)
+                )
+            )
 
             args.run_dir = str(report_path.parent)
             with patch("subprocess.run") as run_command:

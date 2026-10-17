@@ -12,7 +12,7 @@ def main():
     parser.add_argument("--optional", default="false")
     parser.add_argument(
         "--phase",
-        choices=("observe", "execute", "screenshot"),
+        choices=("observe", "execute", "screenshot", "cleanup"),
         default="execute",
     )
     parser.add_argument("rest", nargs=argparse.REMAINDER)

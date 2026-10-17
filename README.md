@@ -94,8 +94,9 @@ python3 cases-repo/runner/run-all.py --config config.json --case TC002 \
   --finish-live --run-dir reports/run-YYYYMMDD_HHMMSS
 ```
 
-`logs/commands.jsonl` 每个命令一行，记录原始 `nl_step`、命令参数数组、observe/execute 阶段、退出码和输出。每条命令执行后都会尝试截图并刷新 Markdown/HTML 报告。HTML 报告中的截图以小图显示，点击可放大；原始图片保存在 `attachment/`。
+`logs/commands.jsonl` 每个命令一行，记录原始 `nl_step`、命令参数数组、observe/execute/cleanup 阶段、退出码和输出。每条浏览器命令执行后都会尝试截图并刷新 Markdown/HTML 报告。HTML 报告中的截图以小图显示，点击可放大；原始图片保存在 `attachment/`。
 runner 会要求页面动作之间至少有一次 `--phase observe`，避免在没有新页面依据时连续生成操作。
+每个用例成功或失败结束时，runner 会关闭该用例实际使用的所有浏览器 session（包括多个 session 的用例），并把关闭结果写入日志和报告；关闭失败会将该用例标记为 FAIL。
 
 兼容性：旧的 `plans/TCxxx.json` 静态计划仍可通过 `run-all.py --case TCxxx` 执行；新流程不再依赖预生成计划。按 `all` 运行时，每个用例都在前一个用例完成后才开始，并将所有结果追加到同一报告目录。
 

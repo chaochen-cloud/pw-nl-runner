@@ -39,10 +39,12 @@ description: 从指定Git仓库读取自然语言Markdown测试用例，逐步�
        --finish-live --run-dir reports/run-YYYYMMDD_HHMMSS
      ```
    - 不调用 `--finish-live` 的用例会在报告中保留 `RUNNING`，不会被误报为通过。
+   - 用例成功或失败结束时，runner 会自动关闭该用例使用过的所有 `playwright-cli` sessions，包括用例声明的主 session 和命令中显式指定的其他 session；不要手动复用这些 session。
 4. **报告与审计**
    - runner 在每条观察/动作命令后更新同一报告目录中的 `report.json`、`report.md` 和 `report.html`。
    - 每条命令都自动尝试截图到 `attachment/`；截图命令是 optional，截图失败不改变用例结果。
-   - `logs/commands.jsonl` 记录原始自然语言步骤、命令、阶段（observe/execute/screenshot）、退出码和输出。
+   - `logs/commands.jsonl` 记录原始自然语言步骤、命令、阶段（observe/execute/screenshot/cleanup）、退出码和输出。
+   - session 关闭动作也写入审计日志和报告；关闭失败将用例标为 FAIL 并显示错误。
    - `RUNNING`、`PASS` 和 `FAIL` 状态在报告中分别显示；单个用例失败不阻止后续用例。
 5. **结果输出**
    - 汇总 PASS/FAIL/RUNNING 数量

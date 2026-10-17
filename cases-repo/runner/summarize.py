@@ -77,6 +77,7 @@ def render_html(run_data):
                 "observe": "页面观察",
                 "execute": "执行",
                 "screenshot": "截图",
+                "cleanup": "会话清理",
             }.get(record.get("phase", "execute"), "执行")
             screenshot_name = f"{case['case_id']}-step{record['step_idx']:02d}.png"
             screenshot_path = Path(run_data["attachment_dir"]) / screenshot_name
@@ -155,13 +156,19 @@ def main():
                 "observe": "页面观察",
                 "execute": "执行",
                 "screenshot": "截图",
+                "cleanup": "会话清理",
             }.get(rec.get("phase", "execute"), "执行")
             if rec.get("status") == "SKIPPED":
                 res = "⏭ SKIP"
             else:
                 res = "✅ PASS" if rec.get("exit_code") == 0 else "❌ FAIL"
             screenshot_name = f"{case['case_id']}-step{rec['step_idx']:02d}.png"
-            screenshot_link = f"[查看截图](attachment/{screenshot_name})"
+            screenshot_path = Path(run_data["attachment_dir"]) / screenshot_name
+            screenshot_link = (
+                f"[查看截图](attachment/{screenshot_name})"
+                if screenshot_path.is_file()
+                else "无截图"
+            )
             md_lines.append(
                 f"|{rec['step_idx']}|{phase}|{nl}|`{cmd}`|{res}|{screenshot_link}|"
             )
