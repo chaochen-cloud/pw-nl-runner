@@ -210,14 +210,22 @@ class LiveRunnerTests(unittest.TestCase):
                     for call in commands.call_args_list
                 )
             )
-
             report_path = next((root / "reports").glob("run-*/report.json"))
+            self.assertTrue(
+                any(
+                    any(arg.endswith("runner/summarize.py") for arg in command)
+                    and "--run-dir" in command
+                    for command in (
+                        call.args[0]
+                        for call in commands.call_args_list
+                        if isinstance(call.args[0], list) and len(call.args[0]) > 1
+                    )
+                )
+            )
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(report["cases"][0]["status"], "RUNNING")
             self.assertEqual(report["cases"][0]["source_content"], source_content)
             self.assertEqual(len(report["cases"][0]["step_records"]), 1)
-            self.assertFalse((report_path.parent / "report.md").exists())
-            self.assertFalse((report_path.parent / "report.html").exists())
             args.run_dir = str(report_path.parent)
             args.nl = "Add another action without observing"
             with patch("subprocess.run") as run_command:
@@ -233,17 +241,29 @@ class LiveRunnerTests(unittest.TestCase):
             with patch("subprocess.run", side_effect=successful_command) as commands:
                 with contextlib.redirect_stdout(io.StringIO()):
                     run_live_step(root, args, root / "logs/commands.jsonl")
-            self.assertEqual(len(commands.call_args_list), 1)
+            self.assertEqual(len(commands.call_args_list), 2)
             self.assertEqual(
                 commands.call_args_list[0].args[0][-1],
                 "snapshot",
+            )
+            self.assertTrue(
+                any(
+                    any(arg.endswith("runner/summarize.py") for arg in command)
+                    and "--run-dir" in command
+                    for command in (
+                        call.args[0]
+                        for call in commands.call_args_list
+                        if isinstance(call.args[0], list) and len(call.args[0]) > 1
+                    )
+                )
             )
 
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(len(report["cases"][0]["step_records"]), 2)
             self.assertEqual(report["cases"][0]["step_records"][1]["phase"], "observe")
-            self.assertFalse((report_path.parent / "report.md").exists())
-            self.assertFalse((report_path.parent / "report.html").exists())
+            rendered_running_report = SUMMARIZER["render_html"](report)
+            self.assertIn("【RUNNING】", rendered_running_report)
+            self.assertIn("Inspect the loaded page", rendered_running_report)
 
             finish_args = SimpleNamespace(case_ids=["TC010"], run_dir=str(report_path.parent))
             with patch("subprocess.run", side_effect=successful_command) as commands:

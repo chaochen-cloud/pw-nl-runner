@@ -99,7 +99,7 @@ python3 runner/run-all.py --config config.json --case TC002 \
   --finish-live --run-dir reports/run-YYYYMMDD_HHMMSS
 ```
 
-`logs/commands.jsonl` 每个命令一行，记录原始 `nl_step`、命令参数数组、observe/execute/cleanup 阶段、退出码和输出；批次内的多个原始步骤以换行记录。观察步骤只记录快照，不截图；执行动作批次后会尝试截图，截图失败不影响用例结果。执行过程中的 `report.json` 会逐步更新，Markdown/HTML 报告在用例完成或失败时生成。HTML 报告中的截图以小图显示，点击可放大；原始图片保存在 `attachment/`。
+`logs/commands.jsonl` 每个命令一行，记录原始 `nl_step`、命令参数数组、observe/execute/cleanup 阶段、退出码和输出；批次内的多个原始步骤以换行记录。观察步骤只记录快照，不截图；执行动作批次后会尝试截图，截图失败不影响用例结果。执行期间 `report.json`、Markdown 和 HTML 报告都会在每条命令后刷新，报告会显示最新的 `RUNNING` 状态和步骤；用例完成或失败时更新为最终状态。HTML 报告中的截图以小图显示，点击可放大；原始图片保存在 `attachment/`。
 runner 会要求每个页面操作批次之间至少有一次 `--phase observe`，避免在没有新页面依据时继续生成操作。
 每个用例成功或失败结束时，runner 会关闭该用例实际使用的所有浏览器 session（包括多个 session 的用例），并把关闭结果写入日志和报告；关闭失败会将该用例标记为 FAIL。
 每个用例的执行步骤表下方会附上原始 Markdown 用例内容，便于在报告中同时查看需求与执行结果。
