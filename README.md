@@ -68,23 +68,23 @@ cd cases-repo && git init && git add -A && git commit -m "init cases"
 
 ## 命令日志机制（核心）
 
-所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`，SKILL.md 已强制此规则：
+所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`，SKILL.md 已强制此规则。计划命令使用 argv 数组，以原样传递含空格的定位器和文本：
 
 ```bash
-python3 cases-repo/runner/pw-cli-log.py --case TC001 --log-dir logs -- \
-  playwright-cli -s=tc001 open https://app.example.com/login
+python3 cases-repo/runner/pw-cli-log.py --case TC002 --nl '在待办输入框中输入 Buy groceries 并回车' --log-file logs/commands.jsonl -- \
+  playwright-cli -s=tc002 fill "getByRole('textbox', { name: 'What needs to be done?' })" "Buy groceries"
 ```
 
-日志 `logs/commands.jsonl` 每行一条记录：
+计划 JSON 中的 `command` 是参数数组，例如：
 
 ```json
-{"ts":"2026-10-16T14:00:00Z","case":"TC001","session":"tc001","argv":["playwright-cli","-s=tc001","open","https://..."],"exit_code":0,"timed_out":false,"duration_ms":812,"stdout_tail":"...","stderr_tail":""}
+{"nl":"在待办输入框中输入 Buy groceries 并回车","command":["playwright-cli","-s=tc002","fill","getByRole('textbox', { name: 'What needs to be done?' })","Buy groceries"]}
 ```
 
-生成报告：
+`logs/commands.jsonl` 每个步骤一行，记录原始 `nl_step`、实际 `cmd` 参数数组、退出码和输出。每次运行结束后，runner 会调用 `summarize.py` 写出本次报告的 `report.md`：
 
 ```bash
-python3 cases-repo/runner/summarize.py --log-dir logs --report-dir reports
+python3 cases-repo/runner/run-all.py --config config.json
 ```
 
 ## 新增用例
@@ -99,6 +99,6 @@ python3 cases-repo/runner/summarize.py --log-dir logs --report-dir reports
 ## 注意事项
 
 - **agent 是翻译器**：自然语言 → 命令的转换发生在执行时（LLM 理解），写用例零成本
-- **元素定位**：页面元素没有现成 ref，agent 必须先用 `snapshot` / `find` 探查真实 ref 或 CSS/locator
+- **元素定位**：先用 `snapshot` / `find` 探查正式会话中的真实页面语义；优先使用 role、label、text locator。快照 ref 是会话临时引用，不能跨会话写入计划复用
 - **会话隔离**：每个用例独立 `-s=<session>`，避免状态串扰
 - **失败即停**：任一步失败立即停止该用例，记录原因，继续下一个

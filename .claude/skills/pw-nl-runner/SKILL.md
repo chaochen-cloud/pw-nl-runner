@@ -19,7 +19,9 @@ description: 从指定Git仓库读取自然语言Markdown测试用例，翻译�
 3. **翻译生成执行计划plans**
     - 逐条把自然语言步骤翻译成playwright-cli命令，输出 `plans/TCxxx.json`
     - 必须对照playwright-cli官方skill确认命令语法
-    - 元素定位规则：优先snapshot/find页面探查获取定位器，禁止硬猜选择器
+    - 计划中的命令使用参数数组，避免空格、引号被拆坏；runner保留自然语言步骤和实际命令的对应关系
+    - 元素定位优先使用有实际页面依据的语义 locator（role、label、text）；先在该用例的正式浏览器会话中 snapshot/find 探查页面，不要臆造定位器
+    - snapshot ref（如 `e8`）是会话内临时引用，禁止从探查会话复制到计划供另一会话复用；仅在同一会话内即时探查和操作时使用
 4. **调用run_all.py批量执行**
     > 命令：`python3 cases-repo/runner/run_all.py --config config.json`
     - 自动新建 `reports/run-YYYYMMDD_HHMMSS/`，包含`attachment`文件夹

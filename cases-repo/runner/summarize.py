@@ -32,10 +32,10 @@ def main():
         for rec in case["step_records"]:
             nl = rec["nl"].replace("|", "\\|")
             cmd = rec["command"].replace("|", "\\|")
-            if rec["status"] == "SKIPPED":
+            if rec.get("status") == "SKIPPED":
                 res = "⏭ SKIP"
             else:
-                res = "✅ PASS" if rec["exit_code"] == 0 else "❌ FAIL"
+                res = "✅ PASS" if rec.get("exit_code") == 0 else "❌ FAIL"
             screenshot_name = f"{case['case_id']}-step{rec['step_idx']:02d}.png"
             screenshot_link = f"![截图](attachment/{screenshot_name})"
             md_lines.append(f"|{rec['step_idx']}|{nl}|`{cmd}`|{res}|{screenshot_link}|")

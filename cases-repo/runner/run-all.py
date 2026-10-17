@@ -1,6 +1,6 @@
 import argparse
 import json
-import os
+import shlex
 import time
 import subprocess
 from pathlib import Path
@@ -9,6 +9,19 @@ from pathlib import Path
 def load_config(config_path):
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def get_command_argv(command):
+    if isinstance(command, list) and all(isinstance(arg, str) for arg in command):
+        if not command:
+            raise ValueError("Plan step command must not be empty")
+        return command
+    if isinstance(command, str):
+        argv = shlex.split(command)
+        if not argv:
+            raise ValueError("Plan step command must not be empty")
+        return argv
+    raise ValueError("Plan step command must be a string or an array of strings")
 
 
 def main():
@@ -57,15 +70,15 @@ def main():
 
         for step_idx, step in enumerate(steps):
             nl_text = step["nl"]
-            pw_cmd = step["command"]
-            is_assert = step.get("is_assert", False)
+            command_argv = get_command_argv(step["command"])
+            command_display = shlex.join(command_argv)
 
             if case_failed:
                 record = {
                     "case_id": case_id,
                     "step_idx": step_idx,
                     "nl": nl_text,
-                    "command": pw_cmd,
+                    "command": command_display,
                     "status": "SKIPPED",
                     "exit_code": None,
                     "stdout": "",
@@ -82,7 +95,7 @@ def main():
                 "--nl", nl_text,
                 "--log-file", str(log_file),
                 "--"
-            ] + pw_cmd.split(" ")
+            ] + command_argv
 
             start_t = time.time()
             proc = subprocess.run(cmd_wrapper, capture_output=True, text=True)
@@ -93,7 +106,7 @@ def main():
                 "case_id": case_id,
                 "step_idx": step_idx,
                 "nl": nl_text,
-                "command": pw_cmd,
+                "command": command_display,
                 "exit_code": exit_code,
                 "stdout": proc.stdout,
                 "stderr": proc.stderr,
@@ -134,7 +147,7 @@ def main():
         "python3", str(root / "cases-repo/runner/summarize.py"),
         "--run-dir", str(run_dir)
     ]
-    subprocess.run(summarize_cmd)
+    subprocess.run(summarize_cmd, check=True)
 
     print(f"\n✅ 全部用例执行完成！")
     print(f"📁 报告目录：{run_dir}")
