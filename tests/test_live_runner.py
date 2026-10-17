@@ -11,9 +11,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 
-ROOT = Path(__file__).resolve().parents[2]
-RUNNER = runpy.run_path(str(ROOT / "cases-repo/runner/run-all.py"))
-SUMMARIZER = runpy.run_path(str(ROOT / "cases-repo/runner/summarize.py"))
+ROOT = Path(__file__).resolve().parents[1]
+RUNNER = runpy.run_path(str(ROOT / "runner/run-all.py"))
+SUMMARIZER = runpy.run_path(str(ROOT / "runner/summarize.py"))
 
 
 class LiveRunnerTests(unittest.TestCase):
@@ -34,7 +34,7 @@ class LiveRunnerTests(unittest.TestCase):
         )
 
     def test_log_wrapper_records_phase_and_command(self):
-        log_wrapper = ROOT / "cases-repo/runner/pw-cli-log.py"
+        log_wrapper = ROOT / "runner/pw-cli-log.py"
         with tempfile.TemporaryDirectory() as temp_dir:
             log_path = Path(temp_dir) / "commands.jsonl"
             subprocess.run(

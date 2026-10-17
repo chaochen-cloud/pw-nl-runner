@@ -96,7 +96,7 @@ def save_run(root, run_dir, run_summary):
         json.dump(run_summary, f, indent=2, ensure_ascii=False)
 
     summarize_cmd = [
-        "python3", str(root / "cases-repo/runner/summarize.py"),
+        "python3", str(root / "runner/summarize.py"),
         "--run-dir", str(run_dir)
     ]
     subprocess.run(summarize_cmd, check=True)
@@ -108,7 +108,7 @@ def close_case_sessions(root, case_result, log_file):
         step_idx = len(case_result["step_records"])
         command_display = shlex.join(command_argv)
         cmd_wrapper = [
-            "python3", str(root / "cases-repo/runner/pw-cli-log.py"),
+            "python3", str(root / "runner/pw-cli-log.py"),
             "--case", case_result["case_id"],
             "--nl", f"用例结束后关闭浏览器会话 {session}",
             "--phase", "cleanup",
@@ -205,7 +205,7 @@ def run_live_step(root, args, log_file):
     step_idx = len(case_result["step_records"])
     command_display = shlex.join(command_argv)
     cmd_wrapper = [
-        "python3", str(root / "cases-repo/runner/pw-cli-log.py"),
+        "python3", str(root / "runner/pw-cli-log.py"),
         "--case", case_id,
         "--nl", args.nl,
         "--phase", args.phase,
@@ -234,7 +234,7 @@ def run_live_step(root, args, log_file):
 
     screenshot_path = str(attachment_dir / f"{case_id}-step{step_idx:02d}.png")
     screenshot_cmd = [
-        "python3", str(root / "cases-repo/runner/pw-cli-log.py"),
+        "python3", str(root / "runner/pw-cli-log.py"),
         "--case", case_id,
         "--nl", args.nl,
         "--phase", "screenshot",
@@ -320,7 +320,7 @@ def main():
     args = parser.parse_args()
 
     # 工程根目录
-    root = Path(__file__).parent.parent.parent
+    root = Path(__file__).resolve().parent.parent
     cfg = load_config(args.config)
 
     plan_dir = root / cfg["plan_dir"]
@@ -400,7 +400,7 @@ def main():
 
             # 调用日志包装器执行playwright命令
             cmd_wrapper = [
-                "python3", str(root / "cases-repo/runner/pw-cli-log.py"),
+                "python3", str(root / "runner/pw-cli-log.py"),
                 "--case", case_id,
                 "--nl", nl_text,
                 "--log-file", str(log_file),
@@ -435,7 +435,7 @@ def main():
             screenshot_name = f"{case_id}-step{step_idx:02d}.png"
             screenshot_path = str(attachment_dir / screenshot_name)
             screenshot_cmd = [
-                "python3", str(root / "cases-repo/runner/pw-cli-log.py"),
+                "python3", str(root / "runner/pw-cli-log.py"),
                 "--case", case_id,
                 "--nl", f"截图留证：{nl_text}",
                 "--phase", "screenshot",

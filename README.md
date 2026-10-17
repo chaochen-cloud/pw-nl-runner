@@ -9,9 +9,9 @@
    ↓
 自定义 skill（.claude/skills/pw-nl-runner）——逐步观察当前页面、生成并执行下一条命令
    ↓
-cases-repo/runner/run-all.py —— live-step 执行、逐命令截图、报告增量更新
+runner/run-all.py —— live-step 执行、逐命令截图、报告增量更新
    ↓
-pw-cli-log.py —— 记录命令和阶段 → summarize.py → reports/run-<时间戳>/{report.md,report.html}
+runner/pw-cli-log.py —— 记录命令和阶段 → runner/summarize.py → reports/run-<时间戳>/{report.md,report.html}
 ```
 
 ## 目录结构
@@ -27,10 +27,12 @@ pw-nl-runner/
 │   │   ├── TC002.md                 # 自然语言用例：TodoMVC
 │   │   ├── TC003.md                 # 自然语言用例：复用登录态发 POST
 │   │   └── TC004.md                 # 自然语言用例：TodoMVC 后搜索百度
-│   └── runner/
-│       ├── run-all.py               # 静态计划兼容执行和 live-step 执行入口
-│       ├── pw-cli-log.py            # 命令日志包装器
-│       └── summarize.py             # 增量报告生成
+├── runner/
+│   ├── run-all.py                   # 静态计划兼容执行和 live-step 执行入口
+│   ├── pw-cli-log.py                # 命令日志包装器
+│   └── summarize.py                 # 增量报告生成
+├── tests/
+│   └── test_live_runner.py          # runner 和报告测试
 ├── logs/                            # 命令审计日志（运行后生成，建议 gitignore）
 └── reports/                         # 汇总报告（运行后生成，建议 gitignore）
 ```
@@ -71,7 +73,7 @@ cd cases-repo && git init && git add -A && git commit -m "init cases"
 所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`。推荐 live-step 模式：执行每条操作前先在当前 session 获取 snapshot，根据真实页面状态只生成下一条命令并立即执行，不创建整份预生成计划。观察命令也会进入同一报告和审计日志：
 
 ```bash
-python3 cases-repo/runner/run-all.py --config config.json --case TC002 \
+python3 runner/run-all.py --config config.json --case TC002 \
   --live-step --title "添加两条待办并勾选第一条" --session tc002 \
   --nl '在待办输入框中输入 Buy groceries 并回车' --phase observe \
   --command-json '["playwright-cli","-s=tc002","snapshot"]'
@@ -80,7 +82,7 @@ python3 cases-repo/runner/run-all.py --config config.json --case TC002 \
 根据 snapshot 生成并立即执行下一条动作。首条 live-step 自动创建报告目录；后续命令传相同的 `--run-dir`：
 
 ```bash
-python3 cases-repo/runner/run-all.py --config config.json --case TC002 \
+python3 runner/run-all.py --config config.json --case TC002 \
   --live-step --title "添加两条待办并勾选第一条" --session tc002 \
   --nl '在待办输入框中输入 Buy groceries 并回车' --phase execute \
   --command-json '["playwright-cli","-s=tc002","fill","getByRole('\''textbox'\'', { name: '\''What needs to be done?'\'' })","Buy groceries","--submit"]' \
@@ -90,7 +92,7 @@ python3 cases-repo/runner/run-all.py --config config.json --case TC002 \
 最后一条操作和断言通过后显式完成用例。失败步骤会自动将用例标为 FAIL，不可再追加步骤；未完成的用例保留 RUNNING 状态：
 
 ```bash
-python3 cases-repo/runner/run-all.py --config config.json --case TC002 \
+python3 runner/run-all.py --config config.json --case TC002 \
   --finish-live --run-dir reports/run-YYYYMMDD_HHMMSS
 ```
 

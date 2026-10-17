@@ -23,7 +23,7 @@ description: 从指定Git仓库读取自然语言Markdown测试用例，逐步�
    - 初始页面尚未打开时，可直接根据用例明确给出的 URL 生成首次 `open` 命令。此后，在生成下一条页面相关操作前，先在**同一个正式用例 session** 中运行 `snapshot`，读取 URL、页面内容和控件；再结合当前自然语言步骤生成并执行动作。
    - 观察命令使用 runner 的 live 模式，`--phase observe`；浏览器动作及断言使用 `--phase execute`。二者都要使用命令参数数组，并保持原始自然语言步骤不变：
      ```bash
-     python3 cases-repo/runner/run-all.py --config config.json --case TCxxx \
+     python3 runner/run-all.py --config config.json --case TCxxx \
        --live-step --title "用例标题" --session tcxxx \
        --nl "当前用例中的原始自然语言步骤" --phase observe \
        --command-json '["playwright-cli","-s=tcxxx","snapshot"]'
@@ -35,7 +35,7 @@ description: 从指定Git仓库读取自然语言Markdown测试用例，逐步�
    - 每条命令执行后检查 runner 输出和报告状态。命令失败时用例会被标为 `FAIL`，不要再追加该用例的操作；继续执行清单中的下一用例。
    - 当前用例所有操作和断言都成功后，显式完成用例：
      ```bash
-     python3 cases-repo/runner/run-all.py --config config.json --case TCxxx \
+     python3 runner/run-all.py --config config.json --case TCxxx \
        --finish-live --run-dir reports/run-YYYYMMDD_HHMMSS
      ```
    - 不调用 `--finish-live` 的用例会在报告中保留 `RUNNING`，不会被误报为通过。
