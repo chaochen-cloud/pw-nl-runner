@@ -6,3 +6,4 @@ __pycache__/
 *.jsonl
 .playwright-cli/*
 plans/
+.DS_Store
