@@ -91,9 +91,12 @@ def load_original_case(root, case_id):
         return case_file.read()
 
 
-def save_run(root, run_dir, run_summary):
+def save_run(root, run_dir, run_summary, generate_reports=True):
     with open(run_dir / "report.json", "w", encoding="utf-8") as f:
         json.dump(run_summary, f, indent=2, ensure_ascii=False)
+
+    if not generate_reports:
+        return
 
     summarize_cmd = [
         "python3", str(root / "runner/summarize.py"),
@@ -232,28 +235,39 @@ def run_live_step(root, args, log_file):
     if proc.returncode != 0:
         case_result["status"] = "FAIL"
 
-    screenshot_path = str(attachment_dir / f"{case_id}-step{step_idx:02d}.png")
-    screenshot_cmd = [
-        "python3", str(root / "runner/pw-cli-log.py"),
-        "--case", case_id,
-        "--nl", args.nl,
-        "--phase", "screenshot",
-        "--optional", "true",
-        "--log-file", str(log_file),
-        "--",
-        "playwright-cli", f"-s={command_session}",
-        "screenshot", "--filename", screenshot_path,
-    ]
-    subprocess.run(screenshot_cmd, capture_output=True, text=True)
+    if args.phase == "execute":
+        screenshot_path = str(attachment_dir / f"{case_id}-step{step_idx:02d}.png")
+        screenshot_cmd = [
+            "python3", str(root / "runner/pw-cli-log.py"),
+            "--case", case_id,
+            "--nl", args.nl,
+            "--phase", "screenshot",
+            "--optional", "true",
+            "--log-file", str(log_file),
+            "--",
+            "playwright-cli", f"-s={command_session}",
+            "screenshot", "--filename", screenshot_path,
+        ]
+        subprocess.run(screenshot_cmd, capture_output=True, text=True)
 
     if case_result["status"] == "FAIL":
         close_case_sessions(root, case_result, log_file)
 
-    save_run(root, run_dir, run_summary)
+    save_run(
+        root,
+        run_dir,
+        run_summary,
+        generate_reports=case_result["status"] != "RUNNING",
+    )
     print(proc.stdout, end="")
     if proc.stderr:
         print(proc.stderr, end="")
     print(f"\n报告目录：{run_dir}")
+    if case_result["status"] == "RUNNING":
+        print("Markdown/HTML 报告将在用例结束后生成")
+    else:
+        print(f"Markdown报告：{run_dir / 'report.md'}")
+        print(f"HTML报告：{run_dir / 'report.html'}")
     print(f"用例状态：{case_result['status']}")
 
 

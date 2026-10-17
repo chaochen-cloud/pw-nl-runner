@@ -9,7 +9,7 @@
    ↓
 自定义 skill（.claude/skills/pw-nl-runner）——逐步观察当前页面、生成并执行下一条命令
    ↓
-runner/run-all.py —— live-step 执行、逐命令截图、报告增量更新
+runner/run-all.py —— live-step 执行、操作后截图、用例完成后生成报告
    ↓
 runner/pw-cli-log.py —— 记录命令和阶段 → runner/summarize.py → reports/run-<时间戳>/{report.md,report.html}
 ```
@@ -70,7 +70,7 @@ cd cases-repo && git init && git add -A && git commit -m "init cases"
 
 ## 命令日志机制（核心）
 
-所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`。推荐 live-step 模式：执行每条操作前先在当前 session 获取 snapshot，根据真实页面状态只生成下一条命令并立即执行，不创建整份预生成计划。观察命令也会进入同一报告和审计日志：
+所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`。推荐 live-step 模式：执行操作批次前先在当前 session 获取 snapshot，根据真实页面状态只生成下一批命令并立即执行，不创建整份预生成计划。对于同一页面上目标明确、结果可预期的连续动作，可用一次 `run-code` 顺序执行，减少 CLI 往返；遇到导航、动态结果、条件分支或需要依据新页面内容的操作时，先单独执行并重新观察。观察命令也会进入同一报告和审计日志：
 
 ```bash
 python3 runner/run-all.py --config config.json --case TC002 \
@@ -79,15 +79,18 @@ python3 runner/run-all.py --config config.json --case TC002 \
   --command-json '["playwright-cli","-s=tc002","snapshot"]'
 ```
 
-根据 snapshot 生成并立即执行下一条动作。首条 live-step 自动创建报告目录；后续命令传相同的 `--run-dir`：
+根据 snapshot 生成并立即执行下一条动作或确定性动作批次。首条 live-step 自动创建报告目录；后续命令传相同的 `--run-dir`：
 
 ```bash
 python3 runner/run-all.py --config config.json --case TC002 \
   --live-step --title "添加两条待办并勾选第一条" --session tc002 \
-  --nl '在待办输入框中输入 Buy groceries 并回车' --phase execute \
-  --command-json '["playwright-cli","-s=tc002","fill","getByRole('\''textbox'\'', { name: '\''What needs to be done?'\'' })","Buy groceries","--submit"]' \
+  --nl '2. 在待办输入框中输入 "Buy groceries" 并回车
+3. 在待办输入框中输入 "Water flowers" 并回车' --phase execute \
+  --command-json '["playwright-cli","-s=tc002","run-code","async page => { const input = page.getByRole(\"textbox\", { name: \"What needs to be done?\" }); await input.fill(\"Buy groceries\"); await input.press(\"Enter\"); await input.fill(\"Water flowers\"); await input.press(\"Enter\"); }"]' \
   --run-dir reports/run-YYYYMMDD_HHMMSS
 ```
+
+批次的 `--nl` 需要按原顺序逐字包含每个原始自然语言步骤，以换行分隔；日志和报告将其作为一条命令记录。每个批次完成后先观察页面，再决定下一批动作或验证结果。
 
 最后一条操作和断言通过后显式完成用例。失败步骤会自动将用例标为 FAIL，不可再追加步骤；未完成的用例保留 RUNNING 状态：
 
@@ -96,8 +99,8 @@ python3 runner/run-all.py --config config.json --case TC002 \
   --finish-live --run-dir reports/run-YYYYMMDD_HHMMSS
 ```
 
-`logs/commands.jsonl` 每个命令一行，记录原始 `nl_step`、命令参数数组、observe/execute/cleanup 阶段、退出码和输出。每条浏览器命令执行后都会尝试截图并刷新 Markdown/HTML 报告。HTML 报告中的截图以小图显示，点击可放大；原始图片保存在 `attachment/`。
-runner 会要求页面动作之间至少有一次 `--phase observe`，避免在没有新页面依据时连续生成操作。
+`logs/commands.jsonl` 每个命令一行，记录原始 `nl_step`、命令参数数组、observe/execute/cleanup 阶段、退出码和输出；批次内的多个原始步骤以换行记录。观察步骤只记录快照，不截图；执行动作批次后会尝试截图，截图失败不影响用例结果。执行过程中的 `report.json` 会逐步更新，Markdown/HTML 报告在用例完成或失败时生成。HTML 报告中的截图以小图显示，点击可放大；原始图片保存在 `attachment/`。
+runner 会要求每个页面操作批次之间至少有一次 `--phase observe`，避免在没有新页面依据时继续生成操作。
 每个用例成功或失败结束时，runner 会关闭该用例实际使用的所有浏览器 session（包括多个 session 的用例），并把关闭结果写入日志和报告；关闭失败会将该用例标记为 FAIL。
 每个用例的执行步骤表下方会附上原始 Markdown 用例内容，便于在报告中同时查看需求与执行结果。
 
@@ -114,7 +117,7 @@ runner 会要求页面动作之间至少有一次 `--phase observe`，避免在�
 
 ## 注意事项
 
-- **当前状态驱动**：自然语言 → 单条命令的转换发生在每步执行时；下一条命令只能依据前一步之后的页面状态生成
+- **当前状态驱动**：自然语言 → 命令批次的转换发生在执行时；每个批次只能依据最近一次页面快照生成，批次之间重新观察
 - **元素定位**：先用 `snapshot` / `find` 探查正式会话中的真实页面语义；优先使用 role、label、text locator。页面变化后重新观察，不复用旧快照 ref
 - **会话隔离**：每个用例独立 `-s=<session>`，避免状态串扰
 - **失败即停**：任一步失败立即停止该用例，记录原因，继续下一个用例；未显式完成的用例不会被报告为 PASS

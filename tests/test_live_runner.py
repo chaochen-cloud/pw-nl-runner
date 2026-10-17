@@ -201,15 +201,23 @@ class LiveRunnerTests(unittest.TestCase):
                 phase="execute",
                 run_dir=None,
             )
-            with patch("subprocess.run", side_effect=successful_command):
+            with patch("subprocess.run", side_effect=successful_command) as commands:
                 with contextlib.redirect_stdout(io.StringIO()):
                     run_live_step(root, args, root / "logs/commands.jsonl")
+            self.assertTrue(
+                any(
+                    "screenshot" in call.args[0]
+                    for call in commands.call_args_list
+                )
+            )
 
             report_path = next((root / "reports").glob("run-*/report.json"))
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(report["cases"][0]["status"], "RUNNING")
             self.assertEqual(report["cases"][0]["source_content"], source_content)
             self.assertEqual(len(report["cases"][0]["step_records"]), 1)
+            self.assertFalse((report_path.parent / "report.md").exists())
+            self.assertFalse((report_path.parent / "report.html").exists())
             args.run_dir = str(report_path.parent)
             args.nl = "Add another action without observing"
             with patch("subprocess.run") as run_command:
@@ -222,13 +230,20 @@ class LiveRunnerTests(unittest.TestCase):
                 ["playwright-cli", "-s=tc010", "snapshot"]
             )
             args.phase = "observe"
-            with patch("subprocess.run", side_effect=successful_command):
+            with patch("subprocess.run", side_effect=successful_command) as commands:
                 with contextlib.redirect_stdout(io.StringIO()):
                     run_live_step(root, args, root / "logs/commands.jsonl")
+            self.assertEqual(len(commands.call_args_list), 1)
+            self.assertEqual(
+                commands.call_args_list[0].args[0][-1],
+                "snapshot",
+            )
 
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(len(report["cases"][0]["step_records"]), 2)
             self.assertEqual(report["cases"][0]["step_records"][1]["phase"], "observe")
+            self.assertFalse((report_path.parent / "report.md").exists())
+            self.assertFalse((report_path.parent / "report.html").exists())
 
             finish_args = SimpleNamespace(case_ids=["TC010"], run_dir=str(report_path.parent))
             with patch("subprocess.run", side_effect=successful_command) as commands:
@@ -243,6 +258,16 @@ class LiveRunnerTests(unittest.TestCase):
                     command[-2:] == ["-s=tc010", "close"]
                     for command in (call.args[0] for call in commands.call_args_list)
                     if isinstance(command, list)
+                )
+            )
+            self.assertTrue(
+                any(
+                    command[1].endswith("runner/summarize.py")
+                    for command in (
+                        call.args[0]
+                        for call in commands.call_args_list
+                        if isinstance(call.args[0], list) and len(call.args[0]) > 1
+                    )
                 )
             )
 
