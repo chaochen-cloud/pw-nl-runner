@@ -70,13 +70,15 @@ cd cases-repo && git init && git add -A && git commit -m "init cases"
 
 ## 命令日志机制（核心）
 
-所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`。推荐 live-step 模式：执行操作批次前先在当前 session 获取页面观察，根据真实页面状态只生成当前页面上到第一个不确定点为止的下一批命令并立即执行，不创建整份预生成计划。对于同一页面上目标明确、结果可预期的连续动作，可用一次 `run-code` 顺序执行，减少模型规划轮次和 CLI 往返；遇到导航、动态结果、条件分支或需要依据新页面内容的操作时，先单独执行并重新观察。页面观察优先使用 `snapshot <target>` 聚焦当前步骤相关控件/区域；刚导航到新页面或需要判断整体状态时使用完整 `snapshot`。观察命令也会进入同一报告和审计日志：
+所有 playwright-cli 调用**必须**经过 `pw-cli-log.py`。推荐 live-step 模式：执行操作批次前先在当前 session 做**窄观察**（够用即可：`eval` → `find` → `snapshot <target>` → 完整 `snapshot`），根据真实页面状态只生成当前页面上到第一个不确定点为止的下一批命令并立即执行，不创建整份预生成计划。
+
+**同页批处理**：目标明确、结果可预期的连续动作**默认合并为一次 `run-code`**（多步填表、banner+登录、连续添加待办等），避免「每字段一轮 observe + execute」。导航、动态结果、分支或新页面结构未知时再拆批并重新观察。观察命令也会进入同一报告和审计日志：
 
 ```bash
 python3 runner/run-all.py --config config.json --case TC002 \
   --live-step --title "添加两条待办并勾选第一条" --session tc002 \
   --nl '在待办输入框中输入 Buy groceries 并回车' --phase observe \
-  --command-json '["playwright-cli","-s=tc002","snapshot"]'
+  --command-json '["playwright-cli","-s=tc002","find","What needs to be done?"]'
 ```
 
 根据 snapshot 生成并立即执行下一条动作或确定性动作批次。首条 live-step 自动创建报告目录；后续命令传相同的 `--run-dir`：
@@ -118,7 +120,7 @@ runner 会要求每个页面操作批次之间至少有一次 `--phase observe`�
 ## 注意事项
 
 - **当前状态驱动**：自然语言 → 命令批次的转换发生在执行时；每个批次只能依据最近一次页面快照生成，批次之间重新观察
-- **元素定位**：先用 `snapshot` / `find` 探查正式会话中的真实页面语义；优先使用 role、label、text locator。页面变化后重新观察，不复用旧快照 ref
+- **元素定位与速度**：观察默认 `find` / `snapshot <target>` / 轻量 `eval`，整页 `snapshot` 仅必要时使用；同页多步优先单次 `run-code` + 语义 locator。页面变化后重新窄观察，不复用旧 ref
 - **会话隔离**：每个用例独立 `-s=<session>`，避免状态串扰
 - **失败即停**：任一步失败立即停止该用例，记录原因，继续下一个用例；未显式完成的用例不会被报告为 PASS
 - **站点防护**：遇到 CAPTCHA 或安全验证时如实记录，不尝试绕过
